@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 import pyodbc
 import sys
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
 
 
 def get_flacs():
@@ -87,6 +89,21 @@ def fail_count(df):
 # Could look into what the scheduled maintenance looks like for those that don't fail
 # Can we see frequency of failure?
 
+def failure_classifier(df):
+	X = pd.get_dummies(df['make_model'])
+	y = df['fail']
+
+	X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=87)
+
+	rf = RandomForestClassifier()
+	rf.fit(X_train, y_train)
+	accuracy = rf.score(X_test, y_test)
+
+	print('Accuracy of last run:\n', accuracy)
+	# Out of box ~75%
+	return rf
+
 
 if __name__ == '__main__':
 	fail_df = comp_link()
+	fail_rf = failure_classifier(fail_df)
