@@ -95,15 +95,24 @@ def failure_classifier(df):
 
 	X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=87)
 
+	# Should grid search for best hyperparameters
 	rf = RandomForestClassifier()
 	rf.fit(X_train, y_train)
 	accuracy = rf.score(X_test, y_test)
 
-	print('Accuracy of last run:\n', accuracy)
+	print('Accuracy of last run: {:.2f}\n'.format(accuracy))
 	# Out of box ~75%
-	return rf
+
+	comp_importance = dict(zip(X, rf.feature_importances_))
+	# Find the worst compressor
+	worst = max(comp_importance.keys(), key=lambda key: comp_importance[key])
+	print('Worst Compressor: {}'.format(worst))
+	print('{} failures.'.format(df[df['make_model'] == worst]['fail_count'].unique()[0]))
+	print('Installed on {} wells.'.format(len(df[df['make_model'] == worst]['WellFlac'].unique())))
+	print('{:.2f}% of these compressors fail.'.format(df[df['make_model'] == worst]['fail_percentage'].unique()[0]))
+	return rf, comp_importance
 
 
 if __name__ == '__main__':
 	fail_df = comp_link()
-	fail_rf = failure_classifier(fail_df)
+	fail_rf, imp = failure_classifier(fail_df)
