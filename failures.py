@@ -59,8 +59,27 @@ def comp_link():
 	joined = joined[['WellFlac', 'WellName', 'Meter', 'make_model', 'surfaceFailureDate']]
 
 	# Create dummy for any failure
-	joined['Fail'] = np.where(joined['surfaceFailureDate'].notnull(), 1, 0)
-	return joined.drop_duplicates()
+	joined['fail'] = np.where(joined['surfaceFailureDate'].notnull(), 1, 0)
+	joined.drop_duplicates(inplace=True)
+
+	# Count total and percentage of failures for each make_model
+	fail_dic, fail_per = fail_count(joined)
+	joined['fail_count'] = joined['make_model'].map(fail_dic)
+	joined['fail_percentage'] = joined['make_model'].map(fail_per)
+	return joined
+
+def fail_count(df):
+	fail_dic = {}
+	fail_per = {}
+	for model in df['make_model'].unique():
+		count = df[(df['make_model'] == model) & (df['fail'] == 1)].shape[0]
+		total = df[df['make_model'] == model].shape[0]
+		fail_dic[model] = count
+		try:
+			fail_per[model] = count/total
+		except ZeroDivisionError:
+			fail_per[model] = 0
+	return fail_dic, fail_per
 
 # Need to compare failures will compressors that do not fail
 # Look at percentage of each make/model that fail
@@ -70,4 +89,4 @@ def comp_link():
 
 
 if __name__ == '__main__':
-	df = comp_link()
+	fail_df = comp_link()
