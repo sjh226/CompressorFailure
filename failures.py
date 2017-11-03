@@ -110,6 +110,13 @@ def failure_classifier(df):
 	print('{} failures.'.format(df[df['make_model'] == worst]['fail_count'].unique()[0]))
 	print('Installed on {} wells.'.format(len(df[df['make_model'] == worst]['WellFlac'].unique())))
 	print('{:.2f}% of these compressors fail.'.format(df[df['make_model'] == worst]['fail_percentage'].unique()[0]))
+
+	# Worst Compressor: LeRoi HFG12000
+	# 57 failures.
+	# Installed on 116 wells.
+	# 22 repeated failures.
+	# 0.41% of these compressors fail.
+
 	return rf, comp_importance
 
 
