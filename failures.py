@@ -122,5 +122,6 @@ def failure_classifier(df):
 
 
 if __name__ == '__main__':
+	# This is currently limited to early September, do we have data before then?
 	fail_df = comp_link()
 	fail_rf, imp = failure_classifier(fail_df)
