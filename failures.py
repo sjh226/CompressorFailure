@@ -74,8 +74,8 @@ def fail_count(df):
 	fail_dic = {}
 	fail_per = {}
 	for model in df['make_model'].unique():
-		count = df[(df['make_model'] == model) & (df['fail'] == 1)].shape[0]
-		total = df[df['make_model'] == model].shape[0]
+		count = len(df[(df['make_model'] == model) & (df['fail'] == 1)]['WellFlac'].unique())
+		total = len(df[df['make_model'] == model]['WellFlac'].unique())
 		fail_dic[model] = count
 		try:
 			fail_per[model] = count/total
@@ -109,13 +109,14 @@ def failure_classifier(df):
 	print('Worst Compressor: {}'.format(worst))
 	print('{} failures.'.format(df[df['make_model'] == worst]['fail_count'].unique()[0]))
 	print('Installed on {} wells.'.format(len(df[df['make_model'] == worst]['WellFlac'].unique())))
-	print('{:.2f}% of these compressors fail.'.format(df[df['make_model'] == worst]['fail_percentage'].unique()[0]))
+	print('{:.2f}% of these compressors fail.'.format(len(df[(df['make_model'] == worst) & \
+													 (df['fail'] == 1)]['WellFlac'].unique()) / \
+													 len(df[df['make_model'] == worst]['WellFlac'].unique())))
 
 	# Worst Compressor: LeRoi HFG12000
 	# 57 failures.
 	# Installed on 116 wells.
-	# 22 repeated failures.
-	# 0.41% of these compressors fail.
+	# 30% of these compressors fail.
 
 	return rf, comp_importance
 
