@@ -45,11 +45,14 @@ def comp_link():
 	comps['make_model'] = comps['Compressor Manufacturer'] + ' ' + comps['Compressor Model']
 	comps['WellName'] = comps['Well Name'].str.replace('/','_')
 	comps_lim = comps[['WellName', 'Meter', 'make_model']].dropna(how='all')
+	
+#############################################
+# Names are no longer in all caps
 
 	# Bring in information on all wells
 	wells = get_flacs()
 	wells['WellName'] = wells['WellName'].str.replace('/','_')
-
+	print(comps_lim)
 	# Merge compressor data with well info
 	# 95 wells do not have compressor information
 	comps_lim_full = pd.merge(comps_lim, wells, on='WellName')
