@@ -92,9 +92,6 @@ def fail_count(df):
 			fail_per[model] = 0
 	return fail_unique, fail_per
 
-# Need to compare failures will compressors that do not fail
-# Look at percentage of each make/model that fail
-# Use compressors that don't fail somehow?
 # Could look into what the scheduled maintenance looks like for those that don't fail
 # Can we see frequency of failure?
 
