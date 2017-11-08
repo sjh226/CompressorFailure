@@ -76,7 +76,7 @@ def comp_link(limit=False):
 	joined['fail_unique'] = joined['make_model'].map(fail_unique)
 	joined['fail_percentage'] = joined['make_model'].map(fail_per)
 	joined = joined[joined['WellFlac'].notnull()]
-	
+
 	return joined
 
 def fail_count(df):
@@ -101,8 +101,9 @@ def fail_count(df):
 def failure_classifier(df, split='normal'):
 	if split == 'time':
 		# This is tricky since there is no dependence on time
-		train = df[df['fail_date'] >= np.max(df['fail_date']) - datetime.timedelta(days=7)]
-		test = df[df['fail_date'] < np.max(df['fail_date']) - datetime.timedelta(days=7)]
+		cutoff = datetime.datetime(2017, 11, 1)
+		pred_df = df
+		pred_df['recent_fail'] = np.where(pred_df['last_failure'] > cutoff, 1, 0)
 
 		X_train = pd.get_dummies(train['make_model'])
 		X_test = pd.get_dummies(train['make_model'])
