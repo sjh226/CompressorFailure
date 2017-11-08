@@ -38,17 +38,11 @@ def get_flacs():
 
 def comp_link(limit=False):
 	# Data on compressor-specific surface failures
-	failures = pd.read_csv('surface_failures.csv').drop_duplicates()
-	failures['well_name'] = failures['Well1_WellName'].str.lower()
+	failures = pd.read_csv('failures_2017.csv')
+	failures['well_name'] = failures['WellName'].str.lower()
 	failures['well_name'] = failures['well_name'].str.replace('/', '_')
-	failures['fail_date'] = pd.to_datetime(failures['surfaceFailureDate'])
-	fail_lim = failures[['WellFlac', 'fail_date', 'well_name']]
-
-	if limit == True:
-		# Limit to one month's worth of data
-		fail_lim = fail_lim[((fail_lim['fail_date'] >= np.min(fail_lim['fail_date'])) & \
-					   		(fail_lim['fail_date'] >= np.min(fail_lim['fail_date']) + datetime.timedelta(days=30))) | \
-					   		(fail_lim['fail_date'].isnull())]
+	failures['last_failure'] = pd.to_datetime(failures['last_failure'])
+	fail_lim = failures[['WellFlac', 'well_name', 'Asset', 'ID', 'Comp1_Status', 'last_failure', 'fail_count']]
 
 	# Data on all compressors
 	comps = pd.read_csv('compressors.csv', encoding = 'ISO-8859-1')
@@ -58,54 +52,45 @@ def comp_link(limit=False):
 	comps_lim = comps[['well_name', 'Meter', 'make_model']].dropna(how='all')
 
 	# Bring in information on all wells
-	try:
-		wells = pd.read_csv('well_relations.csv')
-	except:
-		wells = get_flacs()
-		wells['well_name'] = wells['WellName'].str.lower()
-		wells['well_name'] = wells['well_name'].str.replace('/', '_')
-		wells.to_csv('well_relations.csv')
-
-	# Merge compressor data with well info
-	# 95 wells do not have compressor information
-	# 64 unique compressors
-	comps_lim_full = pd.merge(comps_lim, wells, on='well_name')
+	# try:
+	# 	wells = pd.read_csv('well_relations.csv')
+	# except:
+	# 	wells = get_flacs()
+	# 	wells['well_name'] = wells['WellName'].str.lower()
+	# 	wells['well_name'] = wells['well_name'].str.replace('/', '_')
+	# 	wells = wells['well_name', 'WellFlac']
+	# 	wells.to_csv('well_relations.csv')
 
 	# Merge surface failures with detailed compressor data
-	joined = pd.merge(fail_lim, comps_lim_full, on='well_name', how='outer')
-	joined['WellFlac'] = np.where(joined['WellFlac_x'].notnull(), joined['WellFlac_x'],\
-								  joined['WellFlac_y']).astype(int)
-	joined = joined[['WellFlac', 'well_name', 'Meter', 'make_model', 'fail_date']]
+	joined = pd.merge(fail_lim, comps_lim, on='well_name', how='outer')
 
 	# Create dummy for any failure
-	joined['fail'] = np.where(joined['fail_date'].notnull(), 1, 0)
-	joined.drop_duplicates(inplace=True)
+	joined['fail'] = np.where(joined['last_failure'].notnull(), 1, 0)
 
 	# Create variable for whether it fails in the last week
-	joined['fail_pred'] = np.where(joined['fail_date'] >= np.max(joined['fail_date'] - \
-								   datetime.timedelta(days = 7)), 1, 0)
+	# joined['fail_pred'] = np.where(joined['last_failure'] >= np.max(joined['last_failure'] - \
+	# 							   datetime.timedelta(days = 7)), 1, 0)
 
 	# Count total and percentage of failures for each make_model
-	fail_unique, fail_per, fail_totals = fail_count(joined)
+	fail_unique, fail_per = fail_count(joined)
 	joined['fail_unique'] = joined['make_model'].map(fail_unique)
 	joined['fail_percentage'] = joined['make_model'].map(fail_per)
-	joined['fail_totals'] = joined['make_model'].map(fail_totals)
+	joined = joined[joined['WellFlac'].notnull()]
+	
 	return joined
 
 def fail_count(df):
 	fail_unique = {}
 	fail_per = {}
-	fail_totals = {}
 	for model in df['make_model'].unique():
 		count = len(df[(df['make_model'] == model) & (df['fail'] == 1)]['WellFlac'].unique())
 		total = len(df[df['make_model'] == model]['WellFlac'].unique())
 		fail_unique[model] = count
-		fail_totals[model] = df[(df['make_model'] == model) & (df['fail'] == 1)].shape[0]
 		try:
 			fail_per[model] = count/total
 		except ZeroDivisionError:
 			fail_per[model] = 0
-	return fail_unique, fail_per, fail_totals
+	return fail_unique, fail_per
 
 # Need to compare failures will compressors that do not fail
 # Look at percentage of each make/model that fail
@@ -125,7 +110,9 @@ def failure_classifier(df, split='normal'):
 		y_train = train['fail_pred']
 		y_test = train['fail_pred']
 	else:
-		X = pd.get_dummies(df['make_model'])
+		feat_df = df[['make_model']]
+		# X = pd.get_dummies(feat_df, columns=['make_model'])
+		X = pd.get_dummies(feat_df['make_model'])
 		y = df['fail']
 		X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=87)
 
@@ -134,7 +121,7 @@ def failure_classifier(df, split='normal'):
 	rf.fit(X_train, y_train)
 	accuracy = rf.score(X_test, y_test)
 
-	model_probs = pd.get_dummies(df['make_model'].unique())
+	model_probs = pd.get_dummies(X)
 	pred_prob = rf.predict_proba(model_probs)
 	probs = {}
 	for i, model in enumerate(df['make_model'].unique()):
@@ -181,7 +168,7 @@ def fail_stats(df, probs):
 		model_stats = model_stats.append(stats)
 
 	model_stats.sort_values('pred_prob_fail', ascending=False, inplace=True)
-	model_stats.to_csv('stats.csv')
+	# model_stats.to_csv('stats.csv')
 	return model_stats
 
 
@@ -189,4 +176,4 @@ if __name__ == '__main__':
 	# This is currently limited to early September, do we have data before then?
 	fail_df = comp_link()
 	fail_rf, imp, pred_prob = failure_classifier(fail_df)
-	stats = fail_stats(fail_df, pred_prob)
+	# stats = fail_stats(fail_df, pred_prob)
