@@ -96,29 +96,26 @@ def fail_count(df):
 # Could look into what the scheduled maintenance looks like for those that don't fail
 # Can we see frequency of failure?
 
-def failure_classifier(df, split='normal'):
-	if split == 'time':
-		# This is tricky since there is no dependence on time
-		cutoff = datetime.datetime(2017, 11, 1)
-		pred_df = df
-		pred_df['recent_fail'] = np.where(pred_df['last_failure'] > cutoff, 1, 0)
+def failure_classifier(df, model=None, results=True):
+	# Build a RF predicting solely on make and model of compressor
 
-		X_train = pd.get_dummies(train['make_model'])
-		X_test = pd.get_dummies(train['make_model'])
+	feat_df = df[['make_model']]
+	# X = pd.get_dummies(feat_df, columns=['make_model'])
+	X = pd.get_dummies(feat_df['make_model'])
 
-		y_train = train['fail_pred']
-		y_test = train['fail_pred']
-	else:
-		feat_df = df[['make_model']]
-		# X = pd.get_dummies(feat_df, columns=['make_model'])
-		X = pd.get_dummies(feat_df['make_model'])
-		y = df['fail']
-		X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=87)
+	y = df['fail']
+	X_train, X_test, y_train, y_test = train_test_split(X, y, random_state=87)
 
 	# Should grid search for best hyperparameters
 	rf = RandomForestClassifier()
 	rf.fit(X_train, y_train)
 	accuracy = rf.score(X_test, y_test)
+
+	if model:
+		model_pred = pd.DataFrame(np.full((1, len(X.columns)), 0), columns=X.columns)
+		model_pred[model] = 1
+		pred = rf.predict(model_pred)
+		return pred
 
 	model_probs = pd.get_dummies(X)
 	pred_prob = rf.predict_proba(model_probs)
@@ -126,19 +123,21 @@ def failure_classifier(df, split='normal'):
 	for i, model in enumerate(df['make_model'].unique()):
 		probs[model] = pred_prob[i, 1]
 
-	print('Accuracy of last run: {:.2f}\n'.format(accuracy))
-	# Out of box ~75%
-
 	comp_importance = dict(zip(X, rf.feature_importances_))
-	# Find the worst compressor
-	worst = max(comp_importance.keys(), key=lambda key: comp_importance[key])
-	print('Worst Compressor: {}'.format(worst))
-	print('{} total failures.'.format(df[df['make_model'] == worst]['fail_totals'].unique()[0]))
-	print('Failed on {} unique wells.'.format(df[df['make_model'] == worst]['fail_unique'].unique()[0]))
-	print('Installed on {} wells.'.format(len(df[df['make_model'] == worst]['WellFlac'].unique())))
-	print('{:.2f}% of these compressors fail.'.format(len(df[(df['make_model'] == worst) & \
-													 (df['fail'] == 1)]['WellFlac'].unique()) / \
-													 len(df[df['make_model'] == worst]['WellFlac'].unique())))
+
+	if results:
+		print('Accuracy of last run: {:.2f}\n'.format(accuracy))
+		# Out of box ~75%
+
+		# Find the worst compressor
+		worst = max(comp_importance.keys(), key=lambda key: comp_importance[key])
+		print('Worst Compressor: {}'.format(worst))
+		# print('{} total failures.'.format(df[df['make_model'] == worst]['fail_totals'].unique()[0]))
+		print('Failed on {} unique wells.'.format(df[df['make_model'] == worst]['fail_unique'].unique()[0]))
+		print('Installed on {} wells.'.format(len(df[df['make_model'] == worst]['WellFlac'].unique())))
+		print('{:.2f}% of these compressors fail.'.format(len(df[(df['make_model'] == worst) & \
+														 (df['fail'] == 1)]['WellFlac'].unique()) / \
+														 len(df[df['make_model'] == worst]['WellFlac'].unique())))
 
 	# Worst Compressor: LeRoi HFG12000
 	# 59 total failures.
@@ -174,5 +173,6 @@ def fail_stats(df, probs):
 if __name__ == '__main__':
 	# This is currently limited to early September, do we have data before then?
 	fail_df = comp_link()
-	fail_rf, imp, pred_prob = failure_classifier(fail_df)
+	fail_rf, comp_importance, probs = failure_classifier(fail_df, results=False)
+	prediction = failure_classifier(fail_df, model='ajax dpc280le', results=False)
 	# stats = fail_stats(fail_df, pred_prob)
