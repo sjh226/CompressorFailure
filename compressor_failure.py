@@ -58,16 +58,19 @@ def rtr_fetch(well_flac):
 			return np.nan
 
 	df['last_failure'] = df['DateTime'].apply(last_date)
-
+	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
 
 	# Need this to be dynamic
 	# Use SQL query with the compresser csv
 	fail_df = comp_link()
 
-    # Bring in the make and model of compressor for this well along with the
-    # total percentage of these compressors that fail
+	# Bring in the make and model of compressor for this well along with the
+	# total percentage of these compressors that fail
 	df['comp_model'] = fail_df[fail_df['WellFlac'] == well_flac]['make_model'].values[0]
+
+	# Should this be calculated for the current specific date?
+	# Maybe pass model into a RF each time to use stacked model
 	df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
 	return df
 
@@ -141,13 +144,23 @@ def failures_fetch(well_flac):
 
 	return df
 
-def time_series_model():
+def time_series_model(df):
 	# Do we want to use RTR data here?
 	# Maybe look at production data, or calculate an average from RTR for each day.
+	def fail_in(date):
+		days = 7
+		if np.mean(df[(df['DateTime'] > date) & \
+					  (df['DateTime'] <= date + datetime.timedelta(days=days))]['failure']) > 0:
+			return 1
+		else:
+			return 0
 
+	df['fail_in_week'] = df['DateTime'].apply(fail_in)
 
-	pass
+	return df
 
 
 if __name__ == '__main__':
 	df = rtr_fetch(70075401)
+
+	df = time_series_model(df)
