@@ -61,6 +61,14 @@ def rtr_fetch(well_flac):
 
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
 
+	# Need this to be dynamic
+	# Use SQL query with the compresser csv
+	fail_df = comp_link()
+
+    # Bring in the make and model of compressor for this well along with the
+    # total percentage of these compressors that fail
+	df['comp_model'] = fail_df[fail_df['WellFlac'] == well_flac]['make_model'].values[0]
+	df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
 	return df
 
 
@@ -136,6 +144,7 @@ def failures_fetch(well_flac):
 def time_series_model():
 	# Do we want to use RTR data here?
 	# Maybe look at production data, or calculate an average from RTR for each day.
+
 
 	pass
 
