@@ -2,11 +2,11 @@ import pandas as pd
 import numpy as np
 import pyodbc
 import sys
-import re
 import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
-# from failures import
+from sklearn.externals import joblib
+from failures import comp_link, failure_classifier
 
 
 def rtr_fetch(well_flac):
@@ -16,6 +16,7 @@ def rtr_fetch(well_flac):
 		print("Connection Error")
 		sys.exit()
 
+	# Fetch the daily RTR history for the specific well
 	cursor = connection.cursor()
 	SQLCommand = ("""
 		SELECT DDH.DateTime
@@ -33,7 +34,6 @@ def rtr_fetch(well_flac):
 		WHERE DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
 		ORDER BY DDH.DateTime ASC;
 	""")
-	### How do we insert different values for WellFlac?
 
 	cursor.execute(SQLCommand)
 	results = cursor.fetchall()
@@ -46,9 +46,10 @@ def rtr_fetch(well_flac):
 	except:
 		df = None
 
+	# Query for the surface failures on record for a specific well
 	failure_df = failures_fetch(well_flac)
-	# print(failure_df['fail_date'])
 
+	# Function to be applied to current day to calculate the last fail date
 	def last_date(date):
 		early_dates = sorted(failure_df[failure_df['fail_date'] <= date]['fail_date'].values)
 		if early_dates:
@@ -57,6 +58,8 @@ def rtr_fetch(well_flac):
 			return np.nan
 
 	df['last_failure'] = df['DateTime'].apply(last_date)
+
+	df['days_since_fail'] = df['DateTime'] - df['last_failure']
 
 	return df
 
@@ -70,6 +73,8 @@ def failures_fetch(well_flac):
 
 	cursor = connection.cursor()
 
+	# Create temporary table for compressor failures
+	# Currently focused on Farmington
 	SQLCommand = ("""
 		USE OperationsDataMart
 
@@ -85,6 +90,7 @@ def failures_fetch(well_flac):
 
 	cursor.execute(SQLCommand)
 
+	# Retrieve RTR data for a specific well and join surface failure information
 	SQLCommand = ("""
 		SELECT W.WellFlac
 			  ,DW.WellName
@@ -122,6 +128,7 @@ def failures_fetch(well_flac):
 	except:
 		df = None
 
+	# Ensure dates are in the correct format
 	df['fail_date'] = pd.to_datetime(df['fail_date'])
 
 	return df
