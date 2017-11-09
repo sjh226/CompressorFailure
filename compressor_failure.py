@@ -150,12 +150,37 @@ def time_series_model(df):
 	def fail_in(date):
 		days = 7
 		if np.mean(df[(df['DateTime'] > date) & \
-					  (df['DateTime'] <= date + datetime.timedelta(days=days))]['failure']) > 0:
+					  (df['DateTime'] <= date + \
+					  datetime.timedelta(days=days))]['failure']) > 0:
 			return 1
 		else:
 			return 0
 
 	df['fail_in_week'] = df['DateTime'].apply(fail_in)
+
+	# Build and return RF model based solely on make and model
+	fail_df = comp_link()
+	model_pred = failure_classifier(fail_df, model=df['comp_model'].unique()[0], results=False)
+
+	df['model_prediction'] = model_pred[0]
+
+	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'])
+
+	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
+	train = df[df['DateTime'] < test_date]
+	test = df[df['DateTime'] >= test_date]
+
+	train = train.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+	test = test.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+
+	y_train = train.pop('fail_in_week')
+	y_test = test.pop('fail_in_week')
+
+	rf = RandomForestClassifier()
+	rf.fit(train, y_train)
+	accuracy = rf.score(test, y_test)
+
+	print('Accuracy of last RF model:\n{}'.format(accuracy))
 
 	return df
 
