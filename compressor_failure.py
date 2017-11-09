@@ -6,6 +6,8 @@ import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
+# joblib.dump(rf, 'random_forest_model.pkl')
+# rf = joblib.load('random_forest_model.pkl')
 from failures import comp_link, failure_classifier
 
 
@@ -57,12 +59,14 @@ def rtr_fetch(well_flac):
 		else:
 			return np.nan
 
+    # Calculate last failure, the actual day it fails, and days since last fail
 	df['last_failure'] = df['DateTime'].apply(last_date)
 	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
 
 	# Need this to be dynamic
 	# Use SQL query with the compresser csv
+############################################################################
 	fail_df = comp_link()
 
 	# Bring in the make and model of compressor for this well along with the
@@ -73,7 +77,6 @@ def rtr_fetch(well_flac):
 	# Maybe pass model into a RF each time to use stacked model
 	df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
 	return df
-
 
 def failures_fetch(well_flac):
 	try:
@@ -147,6 +150,9 @@ def failures_fetch(well_flac):
 def time_series_model(df):
 	# Do we want to use RTR data here?
 	# Maybe look at production data, or calculate an average from RTR for each day.
+
+    # Function used to determine dependent variable based on whether or not the
+    # compressor will fail within a week of the current date
 	def fail_in(date):
 		days = 7
 		if np.mean(df[(df['DateTime'] > date) & \
@@ -159,33 +165,34 @@ def time_series_model(df):
 	df['fail_in_week'] = df['DateTime'].apply(fail_in)
 
 	# Build and return RF model based solely on make and model
+    # Decide if we want this as a classification or predicted probability of failing
 	fail_df = comp_link()
 	model_pred = failure_classifier(fail_df, model=df['comp_model'].unique()[0], results=False)
-
 	df['model_prediction'] = model_pred[0]
 
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'])
 
+    # Train/test split based on a 70/30 split
 	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
 	train = df[df['DateTime'] < test_date]
 	test = df[df['DateTime'] >= test_date]
 
+    # Remove codependent/non-numeric variables
 	train = train.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
 	test = test.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
 
+    # Are there other classification models to try here?
 	rf = RandomForestClassifier()
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
-
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
-
+    
 	return df
 
 
 if __name__ == '__main__':
 	df = rtr_fetch(70075401)
-
 	df = time_series_model(df)
