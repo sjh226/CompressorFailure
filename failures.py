@@ -76,6 +76,7 @@ def comp_link(limit=False):
 	joined['fail_unique'] = joined['make_model'].map(fail_unique)
 	joined['fail_percentage'] = joined['make_model'].map(fail_per)
 	joined = joined[joined['WellFlac'].notnull()]
+	joined['WellFlac'] = joined['WellFlac'].astype(int)
 
 	return joined
 
