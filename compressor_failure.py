@@ -32,7 +32,7 @@ def rtr_fetch(well_flac):
 			  ,DDH.Meter1_ID
 			  ,DDH.Meter1_StaticPressPDayAvg
 			  ,DDH.Meter1_Temperature
-		FROM [EDW].[RTR].[DataDailyHistory] AS DDH\
+		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
 		WHERE DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
 		ORDER BY DDH.DateTime ASC;
 	""")
@@ -189,10 +189,11 @@ def time_series_model(df):
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
-    
 	return df
 
 
 if __name__ == '__main__':
+    # Let's get a list of all the well flacs in Farmington, run this, then
+    # append all the flacs together and run the RF on it
 	df = rtr_fetch(70075401)
 	df = time_series_model(df)
