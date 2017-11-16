@@ -147,7 +147,13 @@ def failures_fetch(well_flac):
 
 	return df
 
-def time_series_model(df):
+def make_model_pred(df, rf_model):
+	feat_df = df[['make_model']]
+	X = pd.get_dummies(feat_df['make_model'])
+	y = df['fail_in_week']
+	pred = rf.predict(model_pred)
+
+def time_series_model(df, rf_model):
 	# Do we want to use RTR data here?
 	# Maybe look at production data, or calculate an average from RTR for each day.
 
@@ -169,6 +175,9 @@ def time_series_model(df):
 	fail_df = comp_link()
 	model_pred = failure_classifier(fail_df, model=df['comp_model'].unique()[0], results=False)
 	df['model_prediction'] = model_pred[0]
+
+	# Use percentages instead of actual predictions
+	# Stack the 2 models
 
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'])
 
@@ -196,4 +205,5 @@ if __name__ == '__main__':
     # Let's get a list of all the well flacs in Farmington, run this, then
     # append all the flacs together and run the RF on it
 	df = rtr_fetch(70075401)
-	df = time_series_model(df)
+	rf = joblib.load('random_forest_model.pkl')
+	df = time_series_model(df, rf)
