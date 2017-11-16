@@ -39,14 +39,14 @@ def get_flacs():
 
 def comp_link(limit=False):
 	# Data on compressor-specific surface failures
-	failures = pd.read_csv('failures_2017.csv')
+	failures = pd.read_csv('data/failures_2017.csv')
 	failures['well_name'] = failures['WellName'].str.lower()
 	failures['well_name'] = failures['well_name'].str.replace('/', '_')
 	failures['last_failure'] = pd.to_datetime(failures['last_failure'])
 	fail_lim = failures[['WellFlac', 'well_name', 'Asset', 'ID', 'Comp1_Status', 'last_failure', 'fail_count']]
 
 	# Data on all compressors
-	comps = pd.read_csv('compressors.csv', encoding = 'ISO-8859-1')
+	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
 	comps['make_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['well_name'] = comps['Well Name'].str.lower()
 	comps['well_name'] = comps['well_name'].str.replace('/', '_')
@@ -79,6 +79,9 @@ def comp_link(limit=False):
 	joined = joined[joined['WellFlac'].notnull()]
 	joined['WellFlac'] = joined['WellFlac'].astype(int)
 
+	# np.savetxt('data/unique_compressors.csv', joined['make_model'].dropna().unique().astype(str), \
+	# 		   delimiter=',', fmt='%s')
+
 	return joined
 
 def fail_count(df):
@@ -99,8 +102,8 @@ def fail_count(df):
 
 def failure_classifier(df, model=None, results=True):
 	# Build a RF predicting solely on make and model of compressor
-
 	feat_df = df[['make_model']]
+
 	# X = pd.get_dummies(feat_df, columns=['make_model'])
 	X = pd.get_dummies(feat_df['make_model'])
 
@@ -167,7 +170,7 @@ def fail_stats(df, probs):
 		model_stats = model_stats.append(stats)
 
 	model_stats.sort_values('pred_prob_fail', ascending=False, inplace=True)
-	# model_stats.to_csv('stats.csv')
+	# model_stats.to_csv('data/stats.csv')
 	return model_stats
 
 
