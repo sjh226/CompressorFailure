@@ -148,15 +148,15 @@ def failures_fetch(well_flac):
 	return df
 
 def make_model_pred(df, rf_model):
-	feat_df = df[['make_model']]
-	X = pd.get_dummies(feat_df['make_model'])
-	y = df['fail_in_week']
-	pred = rf.predict(model_pred)
+	make_model = df['comp_model'].values
+	cols = np.loadtxt('data/unique_compressors.csv', delimiter=',', dtype='str')
+	X = pd.DataFrame(np.full((len(make_model), len(cols)), 0), columns=cols)
+	for idx, model in enumerate(make_model):
+		X.set_value(idx, model, 1)
+	pred = rf.predict_proba(X)
+	return pred[:,1]
 
 def time_series_model(df, rf_model):
-	# Do we want to use RTR data here?
-	# Maybe look at production data, or calculate an average from RTR for each day.
-
     # Function used to determine dependent variable based on whether or not the
     # compressor will fail within a week of the current date
 	def fail_in(date):
@@ -172,9 +172,8 @@ def time_series_model(df, rf_model):
 
 	# Build and return RF model based solely on make and model
     # Decide if we want this as a classification or predicted probability of failing
-	fail_df = comp_link()
-	model_pred = failure_classifier(fail_df, model=df['comp_model'].unique()[0], results=False)
-	df['model_prediction'] = model_pred[0]
+	comp_pred = make_model_pred(df, rf_model)
+	# df['model_prediction'] = model_pred[0]
 
 	# Use percentages instead of actual predictions
 	# Stack the 2 models
