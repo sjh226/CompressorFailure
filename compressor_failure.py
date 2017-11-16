@@ -6,9 +6,6 @@ import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
-# joblib.dump(rf, 'random_forest_model.pkl')
-# rf = joblib.load('random_forest_model.pkl')
-from failures import comp_link, failure_classifier
 
 
 def rtr_fetch(well_flac):
@@ -22,7 +19,7 @@ def rtr_fetch(well_flac):
 	cursor = connection.cursor()
 	SQLCommand = ("""
 		SELECT DDH.DateTime
-			  ,DDH.Well1_Asset
+			  ,DDH.Well1_Asset AS Asset
 			  ,DDH.Well1_WellFlac AS WellFlac
 			  ,DDH.Well1_WellName AS WellName
 			  ,DDH.Well1_CasingPress
@@ -33,8 +30,9 @@ def rtr_fetch(well_flac):
 			  ,DDH.Meter1_StaticPressPDayAvg
 			  ,DDH.Meter1_Temperature
 		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
-		WHERE DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
-		ORDER BY DDH.DateTime ASC;
+		WHERE DDH.Well1_Asset IN ('SJS')
+			--AND DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
+			AND DDH.Well1_WellFlac IS NOT NULL;
 	""")
 
 	cursor.execute(SQLCommand)
@@ -60,22 +58,20 @@ def rtr_fetch(well_flac):
 			return np.nan
 
     # Calculate last failure, the actual day it fails, and days since last fail
+	# This is very time consuming when running across every well...
+	# Is there a more efficient way to do this?
 	df['last_failure'] = df['DateTime'].apply(last_date)
 	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
+	print('completed')
 
-	# Need this to be dynamic
-	# Use SQL query with the compresser csv
-############################################################################
-	fail_df = comp_link()
-
-	# Bring in the make and model of compressor for this well along with the
-	# total percentage of these compressors that fail
-	df['comp_model'] = fail_df[fail_df['WellFlac'] == well_flac]['make_model'].values[0]
-
-	# Should this be calculated for the current specific date?
-	# Maybe pass model into a RF each time to use stacked model
-	df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
+	# # Bring in the make and model of compressor for this well along with the
+	# # total percentage of these compressors that fail
+	# df['comp_model'] = fail_df[fail_df['WellFlac'] == well_flac]['make_model'].values[0]
+    #
+	# # Should this be calculated for the current specific date?
+	# # Maybe pass model into a RF each time to use stacked model
+	# df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
 	return df
 
 def failures_fetch(well_flac):
@@ -112,8 +108,8 @@ def failures_fetch(well_flac):
 			  ,W.ID
 			  ,S.Comp1_Status
 			  ,SF.surfaceFailureDate AS fail_date
-			  ,COUNT(SF.surfaceFailureDate) AS fail_count
-		FROM   EDW.RTR.ConfigWell W
+			  ,F.fail_count
+		FROM   EDW.RTR.ConfigWell AS W
 			INNER JOIN
 			EDW.RTR.DataCurrentSnapshot AS S
 			ON W.ID = S.ID
@@ -123,12 +119,19 @@ def failures_fetch(well_flac):
 			LEFT OUTER JOIN
 			#SurfaceFailures AS SF
 			ON SF.assetWellFlac = W.WellFlac
+			LEFT OUTER JOIN
+				(SELECT COUNT(SF.surfaceFailureDate) AS fail_count
+				 		,W.WellFlac
+				 FROM #SurfaceFailures AS SF
+				 JOIN EDW.RTR.ConfigWell AS W
+				 ON SF.assetWellFlac = W.WellFlac
+				 GROUP BY W.WellFlac) AS F
+			ON F.WellFlac = W.WellFlac
 		WHERE  W.WellStatus = 'A'
 		   AND S.Comp1_Status != 'NA'
 		   AND W.Asset IN ('SJS')
-		   AND W.WellFlac = '"""+ str(well_flac) +"""'
-		GROUP BY W.WellFlac, SF.surfaceFailureDate, W.Asset, W.ID, S.Comp1_Status, DW.WellName
-		ORDER BY W.WellFlac, fail_date;
+		   --AND W.WellFlac = '"""+ str(well_flac) +"""'
+		GROUP BY W.WellFlac, SF.surfaceFailureDate, W.Asset, W.ID, S.Comp1_Status, DW.WellName, F.fail_count;
 	""")
 
 	cursor.execute(SQLCommand)
@@ -145,7 +148,33 @@ def failures_fetch(well_flac):
 	# Ensure dates are in the correct format
 	df['fail_date'] = pd.to_datetime(df['fail_date'])
 
+	# Join compressor information
+	df = compressor_link(df)
+
 	return df
+
+def compressor_link(df):
+	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
+	comps['comp_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
+	comps['WellName'] = comps['Well Name'].str.lower()
+	comps['WellName'] = comps['WellName'].str.replace('/', '_')
+	comps_lim = comps[['WellName', 'Meter', 'comp_model']].dropna(how='all')
+
+	# Merge surface failures with detailed compressor data
+	joined = pd.merge(df, comps_lim, on='WellName', how='outer')
+
+	# Create dummy for any failure
+	joined['fail'] = np.where(joined['fail_date'].notnull(), 1, 0)
+
+	# Count total and percentage of failures for each make_model
+	# fail_unique, fail_per = fail_count(joined)
+	# joined['fail_unique'] = joined['make_model'].map(fail_unique)
+	# joined['fail_percentage'] = joined['make_model'].map(fail_per)
+
+	joined = joined[joined['WellFlac'].notnull()]
+	joined['WellFlac'] = joined['WellFlac'].astype(int)
+
+	return joined
 
 def make_model_pred(df, rf_model):
 	make_model = df['comp_model'].values
@@ -172,12 +201,12 @@ def time_series_model(df, rf_model):
 
 	# Build and return RF model based solely on make and model
     # Decide if we want this as a classification or predicted probability of failing
+
 	comp_pred = make_model_pred(df, rf_model)
 	# df['model_prediction'] = model_pred[0]
 
-	# Use percentages instead of actual predictions
-	# Stack the 2 models
-
+	# Stack the 2 models and use logistic regression?
+	# Or should I just include the dummied model feature in a single model?
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'])
 
     # Train/test split based on a 70/30 split
@@ -186,13 +215,14 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
     # Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
-	test = test.drop(['DateTime', 'Well1_Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
 
     # Are there other classification models to try here?
+
 	rf = RandomForestClassifier()
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
@@ -201,8 +231,6 @@ def time_series_model(df, rf_model):
 
 
 if __name__ == '__main__':
-    # Let's get a list of all the well flacs in Farmington, run this, then
-    # append all the flacs together and run the RF on it
 	df = rtr_fetch(70075401)
 	rf = joblib.load('random_forest_model.pkl')
 	df = time_series_model(df, rf)
