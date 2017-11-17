@@ -31,7 +31,7 @@ def rtr_fetch(well_flac):
 			  ,DDH.Meter1_Temperature
 		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
 		WHERE DDH.Well1_Asset IN ('SJS')
-			AND DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
+			--AND DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
 			AND DDH.Well1_WellFlac != 'FCFED2A'
 			AND DDH.Well1_WellFlac IS NOT NULL;
 	""")
@@ -46,7 +46,7 @@ def rtr_fetch(well_flac):
 		JOIN [OperationsDataMart].[Dimensions].[Wells] AS W
 			ON P.Wellkey = W.Wellkey
 		WHERE P.DateKey >= '2017-01-01'
-			AND W.WellFlac = '""" + str(well_flac) + """'
+			--AND W.WellFlac = '""" + str(well_flac) + """'
 			AND W.Asset = 'Farmington';
 	""")
 
@@ -85,7 +85,6 @@ def rtr_fetch(well_flac):
 	# Calculate last failure, the actual day it fails, and days since last fail
 	# This is very time consuming when running across every well...
 	# Is there a more efficient way to do this?
-	# I can join the surface failures
 	if failure_df.empty:
 		# For wells with no failures, set values to -999
 		df['last_failure'] = -999
@@ -159,7 +158,7 @@ def failures_fetch(well_flac):
 		WHERE  W.WellStatus = 'A'
 		   AND S.Comp1_Status != 'NA'
 		   AND W.Asset IN ('SJS')
-		   AND W.WellFlac = '"""+ str(well_flac) +"""'
+		   --AND W.WellFlac = '"""+ str(well_flac) +"""'
 		GROUP BY W.WellFlac, SF.surfaceFailureDate, W.Asset, W.ID, S.Comp1_Status, DW.WellName, F.fail_count;
 	""")
 
@@ -180,6 +179,16 @@ def failures_fetch(well_flac):
 	return df
 
 def compressor_link(df):
+	'''
+	Joins inputted dataframe with data on the compressors installed for each
+	well within the dataframe.
+
+	INPUT:
+		df - Pandas dataframe containing WellFlacs
+
+	OUTPUT:
+		Joined DataFrame
+	'''
 	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
 	comps['comp_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['WellName'] = comps['Well Name'].str.lower()
@@ -203,6 +212,20 @@ def compressor_link(df):
 	return joined
 
 def make_model_pred(df, rf_model):
+	'''
+	Utilized an inputted, trained random forest model to return the predicted
+	probability that this model with fail.
+
+	INPUTS:
+		df - Pandas dataframe with data containing the make and model of the
+			 compressor for each well.
+		rf_model - Random forest classifier built from dummied variables of the
+				   make and model of compressors.
+
+	OUTPUTS:
+		Numpy array containing the predicted probabilities that a certain
+		compressor will fail.
+	'''
 	make_model = df[df['comp_model'].notnull()]['comp_model'].values
 	cols = np.loadtxt('data/unique_compressors.csv', delimiter=',', dtype='str')
 	X = pd.DataFrame(np.full((len(make_model), len(cols)), 0), columns=cols)
@@ -212,22 +235,39 @@ def make_model_pred(df, rf_model):
 	return pred[:,1]
 
 def time_series_model(df, rf_model):
+	'''
+	Builds out predictor based on whether or not a compressor will fail within
+	a designated number of days.
+	Encorporates a pre-trained random forest classifier to take advantage of
+	predicted probability of failure based solely on make and model of the
+	compressor.
+	Trains a random forest classifier for a final prediction on whether or not
+	a compressor will fail over the next 7 days.
+
+	INPUTS:
+		df - Pandas dataframe containing daily information to be analyzed.
+		rf_model - Random forest classifier built from dummied variables of the
+				   make and model of compressors.
+
+	OUTPUTS:
+		Pandas dataframe containing the new predictor.
+		Accuracy from the current run of the classifier.
+	'''
 	# Function used to determine dependent variable based on whether or not the
 	# compressor will fail within a week of the current date
-	def fail_in(date):
+	def fail_in(row):
 		days = 7
-		if np.mean(df[(df['DateTime'] > date) & \
-					  (df['DateTime'] <= date + \
-					  datetime.timedelta(days=days))]['failure']) > 0:
+		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
+					  (df['DateTime'] <= row['DateTime'] + \
+					  datetime.timedelta(days=days)) & \
+					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
 			return 1
 		else:
 			return 0
 
-	df['fail_in_week'] = df['DateTime'].apply(fail_in)
+	df['fail_in_week'] = df.apply(fail_in, axis=1)
 
-	# Build and return RF model based solely on make and model
-	# Decide if we want this as a classification or predicted probability of failing
-
+	# Get the predicted probability of failure based on compressor make/model
 	comp_pred = make_model_pred(df, rf_model)
 	df['model_prediction'] = comp_pred
 
@@ -249,7 +289,6 @@ def time_series_model(df, rf_model):
 	y_test = test.pop('fail_in_week')
 
 	# Are there other classification models to try here?
-
 	rf = RandomForestClassifier()
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
@@ -258,21 +297,21 @@ def time_series_model(df, rf_model):
 
 
 if __name__ == '__main__':
-	data = pd.read_csv('data/failures_2017.csv')
+	# data = pd.read_csv('data/failures_2017.csv')
 	# data[data['fail_count'] > 0]['WellFlac'].unique()
-	accs = []
-	for flac in [93229101]:
-		print(flac)
-		df = rtr_fetch(flac)
-		# df.to_csv('data/temp_data.csv')
-		# df = pd.read_csv('data/temp_data.csv')
-		rf = joblib.load('random_forest_model.pkl')
-		df, accuracy = time_series_model(df, rf)
-		accs.append(accuracy)
-	print('Average Accuracy: {}'.format(np.mean(accs)))
+	# accs = []
+	# for flac in [93229101]:
+	# 	print(flac)
+	# 	df = rtr_fetch(flac)
+	# 	# df.to_csv('data/temp_data.csv')
+	# 	# df = pd.read_csv('data/temp_data.csv')
+	# 	rf = joblib.load('random_forest_model.pkl')
+	# 	df, accuracy = time_series_model(df, rf)
+	# 	accs.append(accuracy)
+	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/temp_data.csv')
-	# df = pd.read_csv('data/temp_data.csv')
-	# rf = joblib.load('random_forest_model.pkl')
-	# df = time_series_model(df, rf)
+	df = rtr_fetch(70317101)
+	df.to_csv('data/temp_data.csv')
+	df = pd.read_csv('data/temp_data.csv')
+	rf = joblib.load('random_forest_model.pkl')
+	df, acc = time_series_model(df, rf)
