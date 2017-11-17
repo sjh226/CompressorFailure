@@ -86,11 +86,16 @@ def rtr_fetch(well_flac):
 	# This is very time consuming when running across every well...
 	# Is there a more efficient way to do this?
 	# I can join the surface failures
+	# if failure_df != None:
 	df['last_failure'] = df.apply(last_date, axis=1)
 	df['last_failure'] = pd.to_datetime(df['last_failure'])
 
 	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
+	# else:
+	# 	df['last_failure'] = np.nan
+	# 	df['failure'] = np.nan
+	# 	df['days_since_fail'] = np.nan
 
 	# Join compressor information
 	df = compressor_link(df)
@@ -172,11 +177,11 @@ def failures_fetch(well_flac):
 
 	try:
 		df.columns = pd.DataFrame(np.matrix(cursor.description))[0]
+
+		# Ensure dates are in the correct format
+		df['fail_date'] = pd.to_datetime(df['fail_date'])
 	except:
 		df = None
-
-	# Ensure dates are in the correct format
-	df['fail_date'] = pd.to_datetime(df['fail_date'])
 
 	return df
 
@@ -245,8 +250,8 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
@@ -257,18 +262,22 @@ def time_series_model(df, rf_model):
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
-	return df
+	return df, accuracy
 
 
 if __name__ == '__main__':
 	data = pd.read_csv('data/failures_2017.csv')
-	for flac in data[data['fail_count'] > 0]['WellFlac'].unique():
+	# data[data['fail_count'] > 0]['WellFlac'].unique()
+	accs = []
+	for flac in [97986402,72631701,72940401,72822301,97867601,97927701,70305001,70404301,72759401,72940302,93229101,72789701,70452101,70511601,72662401,72204104,72241001,72467903,72861101,84870001,84871301,97934801,97936403,97870201,97872701,97946303,97964705,97874201,97937503,97927401,97930901,97931001,72822501]:
 		print(flac)
 		df = rtr_fetch(flac)
 		# df.to_csv('data/temp_data.csv')
 		# df = pd.read_csv('data/temp_data.csv')
 		rf = joblib.load('random_forest_model.pkl')
-		df = time_series_model(df, rf)
+		df, accuracy = time_series_model(df, rf)
+		accs.append(accuracy)
+	print('Average Accuracy: {}'.format(np.mean(accs)))
 
 	# df = rtr_fetch(70317101)
 	# df.to_csv('data/temp_data.csv')
