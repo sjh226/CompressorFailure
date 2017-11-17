@@ -45,25 +45,32 @@ def rtr_fetch(well_flac):
 		df.columns = pd.DataFrame(np.matrix(cursor.description))[0]
 	except:
 		df = None
+	df['WellName'] = df['WellName'].str.lower()
 
 	# Query for the surface failures on record for a specific well
 	failure_df = failures_fetch(well_flac)
 
 	# Function to be applied to current day to calculate the last fail date
-	def last_date(date):
-		early_dates = sorted(failure_df[failure_df['fail_date'] <= date]['fail_date'].values)
-		if early_dates:
-			return early_dates[-1]
+	def last_date(row):
+		print('apply')
+		early_dates = failure_df[(failure_df['fail_date'] <= row['DateTime']) & \
+								 (failure_df['WellFlac'] == row['WellFlac'])]['fail_date'].values
+		print('next')
+		if len(early_dates) > 0:
+			return np.max(early_dates)
 		else:
 			return np.nan
 
     # Calculate last failure, the actual day it fails, and days since last fail
 	# This is very time consuming when running across every well...
 	# Is there a more efficient way to do this?
-	df['last_failure'] = df['DateTime'].apply(last_date)
+	# I can join the surface failures
+	df['last_failure'] = df.apply(last_date, axis=1)
 	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
 	df['days_since_fail'] = df['DateTime'] - df['last_failure']
-	print('completed')
+
+	# Join compressor information
+	df = compressor_link(df)
 
 	# # Bring in the make and model of compressor for this well along with the
 	# # total percentage of these compressors that fail
@@ -148,23 +155,19 @@ def failures_fetch(well_flac):
 	# Ensure dates are in the correct format
 	df['fail_date'] = pd.to_datetime(df['fail_date'])
 
-	# Join compressor information
-	df = compressor_link(df)
-
 	return df
 
 def compressor_link(df):
 	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
 	comps['comp_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['WellName'] = comps['Well Name'].str.lower()
-	comps['WellName'] = comps['WellName'].str.replace('/', '_')
 	comps_lim = comps[['WellName', 'Meter', 'comp_model']].dropna(how='all')
 
 	# Merge surface failures with detailed compressor data
 	joined = pd.merge(df, comps_lim, on='WellName', how='outer')
 
 	# Create dummy for any failure
-	joined['fail'] = np.where(joined['fail_date'].notnull(), 1, 0)
+	# joined['fail'] = np.where(joined['fail_date'].notnull(), 1, 0)
 
 	# Count total and percentage of failures for each make_model
 	# fail_unique, fail_per = fail_count(joined)
@@ -177,7 +180,7 @@ def compressor_link(df):
 	return joined
 
 def make_model_pred(df, rf_model):
-	make_model = df['comp_model'].values
+	make_model = df[df['comp_model'].notnull()]['comp_model'].values
 	cols = np.loadtxt('data/unique_compressors.csv', delimiter=',', dtype='str')
 	X = pd.DataFrame(np.full((len(make_model), len(cols)), 0), columns=cols)
 	for idx, model in enumerate(make_model):
@@ -232,5 +235,7 @@ def time_series_model(df, rf_model):
 
 if __name__ == '__main__':
 	df = rtr_fetch(70075401)
+	df.to_csv('data/temp_data.csv')
+	df = pd.read_csv('data/temp_data.csv')
 	rf = joblib.load('random_forest_model.pkl')
 	df = time_series_model(df, rf)
