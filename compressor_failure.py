@@ -36,6 +36,7 @@ def rtr_fetch(well_flac):
 			AND DDH.Well1_WellFlac IS NOT NULL;
 	""")
 
+	# Is production data better? Seems to go back further, need to talk to someone about this
 	SQLCommand = ("""
 		SELECT P.DateKey AS DateTime
 			  ,W.WellFlac
@@ -74,7 +75,6 @@ def rtr_fetch(well_flac):
 
 	# Function to be applied to current day to calculate the last fail date
 	def last_date(row):
-		# print(row['WellFlac'])
 		early_dates = failure_df[(failure_df['fail_date'] <= row['DateTime']) & \
 								 (failure_df['WellFlac'] == row['WellFlac'])]['fail_date'].values
 		if len(early_dates) > 0:
@@ -86,22 +86,21 @@ def rtr_fetch(well_flac):
 	# This is very time consuming when running across every well...
 	# Is there a more efficient way to do this?
 	# I can join the surface failures
-	df['last_failure'] = df.apply(last_date, axis=1)
-	df['last_failure'] = pd.to_datetime(df['last_failure'])
+	if failure_df.empty:
+		# For wells with no failures, set values to -999
+		df['last_failure'] = -999
+		df['failure'] = -999
+		df['days_since_fail'] = -999
+	else:
+		df['last_failure'] = df.apply(last_date, axis=1)
+		df['last_failure'] = pd.to_datetime(df['last_failure'])
 
-	df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
-	df['days_since_fail'] = df['DateTime'] - df['last_failure']
+		df['failure'] = np.where(df['last_failure'] == df['DateTime'], 1, 0)
+		df['days_since_fail'] = df['DateTime'] - df['last_failure']
 
 	# Join compressor information
 	df = compressor_link(df)
 
-	# # Bring in the make and model of compressor for this well along with the
-	# # total percentage of these compressors that fail
-	# df['comp_model'] = fail_df[fail_df['WellFlac'] == well_flac]['make_model'].values[0]
-	#
-	# # Should this be calculated for the current specific date?
-	# # Maybe pass model into a RF each time to use stacked model
-	# df['percent_failure'] = fail_df[fail_df['WellFlac'] == well_flac]['fail_percentage'].values[0]
 	return df
 
 def failures_fetch(well_flac):
@@ -172,11 +171,11 @@ def failures_fetch(well_flac):
 
 	try:
 		df.columns = pd.DataFrame(np.matrix(cursor.description))[0]
-	except:
-		df = None
 
-	# Ensure dates are in the correct format
-	df['fail_date'] = pd.to_datetime(df['fail_date'])
+		# Ensure dates are in the correct format
+		df['fail_date'] = pd.to_datetime(df['fail_date'])
+	except:
+		pass
 
 	return df
 
@@ -229,13 +228,11 @@ def time_series_model(df, rf_model):
 	# Build and return RF model based solely on make and model
 	# Decide if we want this as a classification or predicted probability of failing
 
-	# comp_pred = make_model_pred(df, rf_model)
-	# df['model_prediction'] = model_pred[0]
+	comp_pred = make_model_pred(df, rf_model)
+	df['model_prediction'] = comp_pred
 
 	# Stack the 2 models and use logistic regression?
 	# Or should I just include the dummied model feature in a single model?
-	# df['days_since_fail'].fillna(pd.Timedelta('0 days'), inplace=True)
-	# df[df['days_since_fail'].notnull()]['days_since_fail'].astype(int, copy=False)
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
 
 	# Train/test split based on a 70/30 split
@@ -245,8 +242,8 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure'], axis=1)
+	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
@@ -257,18 +254,22 @@ def time_series_model(df, rf_model):
 	rf.fit(train, y_train)
 	accuracy = rf.score(test, y_test)
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
-	return df
+	return df, accuracy
 
 
 if __name__ == '__main__':
 	data = pd.read_csv('data/failures_2017.csv')
-	for flac in data[data['fail_count'] > 0]['WellFlac'].unique():
+	# data[data['fail_count'] > 0]['WellFlac'].unique()
+	accs = []
+	for flac in [93229101]:
 		print(flac)
 		df = rtr_fetch(flac)
 		# df.to_csv('data/temp_data.csv')
 		# df = pd.read_csv('data/temp_data.csv')
 		rf = joblib.load('random_forest_model.pkl')
-		df = time_series_model(df, rf)
+		df, accuracy = time_series_model(df, rf)
+		accs.append(accuracy)
+	print('Average Accuracy: {}'.format(np.mean(accs)))
 
 	# df = rtr_fetch(70317101)
 	# df.to_csv('data/temp_data.csv')
