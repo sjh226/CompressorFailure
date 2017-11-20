@@ -173,12 +173,14 @@ def fail_stats(df, probs):
 	# model_stats.to_csv('data/stats.csv')
 	return model_stats
 
+def comp_plot(df):
+
+
 
 if __name__ == '__main__':
-	# This is currently limited to early September, do we have data before then?
 	fail_df = comp_link()
 	fail_rf, comp_importance, probs = failure_classifier(fail_df, results=False)
-	joblib.dump(fail_rf, 'random_forest_model.pkl')
+	# joblib.dump(fail_rf, 'random_forest_model.pkl')
 	# rf = joblib.load('random_forest_model.pkl')
 	# prediction = failure_classifier(fail_df, model='ajax dpc280le', results=False)
 	# stats = fail_stats(fail_df, pred_prob)
