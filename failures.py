@@ -173,9 +173,6 @@ def fail_stats(df, probs):
 	# model_stats.to_csv('data/stats.csv')
 	return model_stats
 
-def comp_plot(df):
-
-
 
 if __name__ == '__main__':
 	fail_df = comp_link()
