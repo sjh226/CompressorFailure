@@ -99,6 +99,28 @@ def comp_link(df):
 
 	return joined
 
+def month_plot(df):
+	plt.close()
+	fig, ax = plt.subplots(1, 1, figsize=(10, 10))
+
+	df.loc[df['last_fail'].notnull(), 'month'] = pd.to_datetime(df[df['last_fail'].notnull()]['last_fail']).dt.month
+	month_fail = {}
+	for month in np.arange(1, 13):
+		month_fail[month] = df[df['month'] == month].shape[0]
+
+	ind = np.arange(12)
+	width = 0.35
+
+	plt.bar(ind, month_fail.values(), width)
+	plt.ylabel('Total Failures')
+	plt.title('Compressor Failure by Month')
+	plt.xlabel('Month')
+	plt.xticks(ind, ('January', 'February', 'March', 'April', 'May', 'June', \
+					 'July', 'August', 'September', 'October', 'November', 'December'), \
+					 rotation='vertical')
+
+	plt.savefig('monthly_fails.png')
+
 def compressor_plot(df):
 	plt.close()
 
@@ -114,8 +136,6 @@ def compressor_plot(df):
 	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
 		comp_fail_dic[compressor] = df[(df['make_model'] == compressor) & (df['fail_count'] > 0)].shape[0]
 		comp_tot_dic[compressor] = df[df['make_model'] == compressor].shape[0]
-
-
 
 	ind = np.arange(len(df['make_model'].unique()))
 	width = 0.35
@@ -134,4 +154,5 @@ def compressor_plot(df):
 
 if __name__ == '__main__':
 	df = failures_fetch()
-	compressor_plot(df)
+	# compressor_plot(df)
+	month_plot(df)
