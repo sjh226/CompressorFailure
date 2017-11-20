@@ -24,10 +24,12 @@ def rtr_fetch(well_flac):
 			  ,DDH.Well1_WellName AS WellName
 			  ,DDH.Well1_CasingPress
 			  ,DDH.Well1_TubingPress
+			  ,DDH.Meter1_OffGasTarget
 			  ,DDH.RTU1_Barometer
 			  ,DDH.RTU1_BatteryVoltage
-			  ,DDH.Meter1_ID
-			  ,DDH.Meter1_StaticPressPDayAvg
+			  ,DDH.Meter1_DiffPress
+			  ,DDH.Meter1_StaticPress
+			  ,DDH.Meter1_FlowRate
 			  ,DDH.Meter1_Temperature
 		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
 		WHERE DDH.Well1_Asset IN ('SJS')
@@ -37,18 +39,18 @@ def rtr_fetch(well_flac):
 	""")
 
 	# Is production data better? Seems to go back further, need to talk to someone about this
-	SQLCommand = ("""
-		SELECT P.DateKey AS DateTime
-			  ,W.WellFlac
-			  ,W.Asset
-			  ,W.WellName
-		FROM [OperationsDataMart].[Facts].[Production] AS P
-		JOIN [OperationsDataMart].[Dimensions].[Wells] AS W
-			ON P.Wellkey = W.Wellkey
-		WHERE P.DateKey >= '2017-01-01'
-			--AND W.WellFlac = '""" + str(well_flac) + """'
-			AND W.Asset = 'Farmington';
-	""")
+	# SQLCommand = ("""
+	# 	SELECT P.DateKey AS DateTime
+	# 		  ,W.WellFlac
+	# 		  ,W.Asset
+	# 		  ,W.WellName
+	# 	FROM [OperationsDataMart].[Facts].[Production] AS P
+	# 	JOIN [OperationsDataMart].[Dimensions].[Wells] AS W
+	# 		ON P.Wellkey = W.Wellkey
+	# 	WHERE P.DateKey >= '2017-01-01'
+	# 		--AND W.WellFlac = '""" + str(well_flac) + """'
+	# 		AND W.Asset = 'Farmington';
+	# """)
 
 	cursor.execute(SQLCommand)
 	results = cursor.fetchall()
@@ -315,8 +317,8 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/temp_data.csv')
-	df = pd.read_csv('data/comp_feat.csv')
-	rf = joblib.load('random_forest_model.pkl')
-	df, acc = time_series_model(df, rf)
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_data.csv')
+	# df = pd.read_csv('data/comp_feat.csv')
+	# rf = joblib.load('random_forest_model.pkl')
+	# df, acc = time_series_model(df, rf)
