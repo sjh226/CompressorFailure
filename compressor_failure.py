@@ -310,8 +310,9 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	df = rtr_fetch(70317101)
-	df.to_csv('data/temp_data.csv')
+	# df = rtr_fetch(70317101)
+	# df.to_csv('data/temp_data.csv')
 	df = pd.read_csv('data/temp_data.csv')
+	df['DateTime'] = pd.to_datetime(df['DateTime'])
 	rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)
