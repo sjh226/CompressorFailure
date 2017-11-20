@@ -92,7 +92,8 @@ def comp_link(df):
 	comps['make_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['WellName'] = comps['Well Name'].str.upper()
 	comps['WellName'] = comps['WellName'].str.replace('/', '_')
-	comps_lim = comps[['WellName', 'Meter', 'make_model']].dropna(how='all')
+	comps['cost'] = comps['Rate'].astype(float) + comps['Maintenance Including Fluids'].astype(float)
+	comps_lim = comps[['WellName', 'Meter', 'make_model', 'cost']].dropna(how='all')
 
 	# Merge surface failures with detailed compressor data
 	joined = pd.merge(df, comps_lim, on='WellName', how='outer')
@@ -133,26 +134,29 @@ def compressor_plot(df):
 
 	comp_fail_dic = {}
 	comp_tot_dic = {}
+	comp_cost = {}
 	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
 		comp_fail_dic[compressor] = df[(df['make_model'] == compressor) & (df['fail_count'] > 0)].shape[0]
 		comp_tot_dic[compressor] = df[df['make_model'] == compressor].shape[0]
+		comp_cost[compressor] = df[df['make_model'] == compressor]['cost'].unique()[0]
 
 	ind = np.arange(len(df['make_model'].unique()))
 	width = 0.35
 
 	p1 = plt.bar(ind, comp_tot_dic.values(), width, color='#5A1000')
 	p2 = plt.bar(ind, comp_fail_dic.values(), width, color='#E12800')
+	p3 = plt.bar(ind + width, comp_cost.values(), width)
 
 	plt.ylabel('Total Compressors')
 	plt.title('Compressor Failures')
 	plt.xlabel('Compressor Type')
 	plt.xticks(ind, comp_tot_dic.keys(), rotation='vertical')
-	plt.legend((p1[0], p2[0]), ('Total Installs', 'Compressors which Failed in 2017'))
+	plt.legend((p1[0], p2[0], p3[0]), ('Total Installs', 'Compressors which Failed in 2017', 'Monthly Maintenance Cost'))
 
 	plt.savefig('comp_fails.png')
 
 
 if __name__ == '__main__':
 	df = failures_fetch()
-	# compressor_plot(df)
-	month_plot(df)
+	compressor_plot(df)
+	# month_plot(df)

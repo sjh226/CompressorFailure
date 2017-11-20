@@ -100,6 +100,9 @@ def rtr_fetch(well_flac):
 	# Join compressor information
 	df = compressor_link(df)
 
+	df['days_since_fail'].fillna(-999, inplace=True)
+	df.dropna(axis=0, subset=['comp_model'], inplace=True)
+
 	return df
 
 def failures_fetch(well_flac):
@@ -265,11 +268,11 @@ def time_series_model(df, rf_model):
 		else:
 			return 0
 
-	df['fail_in_week'] = df.apply(fail_in, axis=1)
+	# df['fail_in_week'] = df.apply(fail_in, axis=1)
 
 	# Get the predicted probability of failure based on compressor make/model
-	comp_pred = make_model_pred(df, rf_model)
-	df['model_prediction'] = comp_pred
+	# comp_pred = make_model_pred(df, rf_model)
+	# df['model_prediction'] = comp_pred
 
 	# Stack the 2 models and use logistic regression?
 	# Or should I just include the dummied model feature in a single model?
@@ -282,8 +285,10 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	# train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	# test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	train = train[['days_since_fail', 'fail_in_week']]
+	test = test[['days_since_fail', 'fail_in_week']]
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
@@ -312,7 +317,6 @@ if __name__ == '__main__':
 
 	# df = rtr_fetch(70317101)
 	# df.to_csv('data/temp_data.csv')
-	df = pd.read_csv('data/temp_data.csv')
-	df['DateTime'] = pd.to_datetime(df['DateTime'])
+	df = pd.read_csv('data/comp_feat.csv')
 	rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)
