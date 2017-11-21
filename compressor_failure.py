@@ -260,11 +260,13 @@ def time_series_model(df, rf_model):
 	'''
 	# Function used to determine dependent variable based on whether or not the
 	# compressor will fail within a week of the current date
+	df['DateTime'] = pd.to_datetime(df['DateTime'])
+
 	def fail_in(row):
 		days = 7
 		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
-					  (df['DateTime'] <= row['DateTime'] + \
-					  datetime.timedelta(days=days)) & \
+					  (df['DateTime'] <= (row['DateTime'] + \
+					  datetime.timedelta(days=days))) & \
 					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
 			return 1
 		else:
@@ -317,8 +319,8 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	df = rtr_fetch(70317101)
-	df.to_csv('data/rtr_data.csv')
-	# df = pd.read_csv('data/comp_feat.csv')
-	# rf = joblib.load('random_forest_model.pkl')
-	# df, acc = time_series_model(df, rf)
+	# df = rtr_fetch(70317101)
+	# df.to_csv('data/rtr_data.csv')
+	df = pd.read_csv('data/rtr_data.csv')
+	rf = joblib.load('random_forest_model.pkl')
+	df, acc = time_series_model(df, rf)
