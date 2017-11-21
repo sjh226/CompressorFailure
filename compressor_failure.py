@@ -289,10 +289,10 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
 	# Remove codependent/non-numeric variables
-	# train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
-	# test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
-	train = train[['days_since_fail', 'fail_in_week']]
-	test = test[['days_since_fail', 'fail_in_week']]
+	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	# train = train[['days_since_fail', 'fail_in_week']]
+	# test = test[['days_since_fail', 'fail_in_week']]
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
