@@ -163,7 +163,7 @@ def compressor_plot(df):
 
 	plt.savefig('images/comp_fails.png')
 
-def price_plot(df):
+def price_plot(df, plot):
 	plt.close()
 
 	fig, ax1 = plt.subplots(1, 1, figsize=(17, 15))
@@ -176,36 +176,79 @@ def price_plot(df):
 									  / len(df[df['make_model'] == compressor]['well_flac'].unique())
 
 	perc = {}
-	cost_dic = {}
+	y_dic = {}
 	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
 		perc[compressor] = percent_dic[compressor]
-		cost_dic[compressor] = df[df['make_model'] == compressor]['cost'].mode()[0]
-		# print(compressor, '\n', len(df[df['make_model'] == compressor]['well_flac'].unique()), \
-		# 	  '\n', len(df[(df['make_model'] == compressor) & (df['last_fail'].notnull())]['well_flac'].unique()), '\n-------------------------')
+		if plot == 'cost':
+			y_dic[compressor] = df[df['make_model'] == compressor]['cost'].mode()[0]
+			# print(compressor, '\n', len(df[df['make_model'] == compressor]['well_flac'].unique()), \
+			# 	  '\n', len(df[(df['make_model'] == compressor) & (df['last_fail'].notnull())]['well_flac'].unique()), '\n-------------------------')
+		elif plot == 'temp_kill':
+			y_dic[compressor] = df[df['make_model'] == compressor]['discharge_temp_kill'].mode()[0]
+			# print(compressor, '\n', df[df['make_model'] == compressor]['discharge_temp_kill'].unique())
 
 	ind = np.arange(len(perc))
 	width = 0.35
 
 	p1 = ax1.bar(ind, perc.values(), width, color='#58b5ef')
-	ax1.set_ylabel('Percent Failure')
+	ax1.set_ylabel('Percent Failure in 2017')
 	ax1.set_xlabel('Compressor Type')
 	matplotlib.rcParams.update({'font.size': 18})
 	plt.xticks(ind, perc.keys(), rotation='vertical')
 
 	ax2 = ax1.twinx()
 	matplotlib.rcParams.update({'font.size': 18})
-	p2 = ax2.bar(ind + width, cost_dic.values(), width, color='#39702b')
+	p2 = ax2.bar(ind + width, y_dic.values(), width, color='#39702b')
 	ax2.set_ylabel('Monthly Maintenance Cost')
 
 	plt.title('Cost of Compressors by Fail Percentage')
 	plt.tight_layout()
 	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Maintenance Cost'), loc=2)
 
-	plt.savefig('images/comp_cost.png')
+	plt.savefig('images/comp_{}.png'.format(plot))
+
+def manufacturer_plot(df):
+	plt.close()
+
+	fig, ax1 = plt.subplots(1, 1, figsize=(17, 15))
+	matplotlib.rcParams.update({'font.size': 18})
+
+	percent_dic = {}
+	for compressor in df['compressor_manufacturer'].unique():
+		if len(df[df['compressor_manufacturer'] == compressor]['well_flac'].unique()) > 10:
+			percent_dic[compressor] = len(df[(df['compressor_manufacturer'] == compressor) & (df['fail_count'] > 0)]['well_flac'].unique()) \
+									  / len(df[df['compressor_manufacturer'] == compressor]['well_flac'].unique())
+
+	perc = {}
+	y_dic = {}
+	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
+		perc[compressor] = percent_dic[compressor]
+		# y_dic[compressor] = df[df['compressor_manufacturer'] == compressor]['cost'].mode()[0]
+
+	ind = np.arange(len(perc))
+	width = 0.35
+
+	p1 = ax1.bar(ind, perc.values(), width, color='#2c069e')
+	ax1.set_ylabel('Percent Failure in 2017')
+	ax1.set_xlabel('Compressor Manufacturer')
+	matplotlib.rcParams.update({'font.size': 18})
+	plt.xticks(ind, perc.keys(), rotation='vertical')
+
+	# ax2 = ax1.twinx()
+	# matplotlib.rcParams.update({'font.size': 18})
+	# p2 = ax2.bar(ind + width, y_dic.values(), width, color='#39702b')
+	# ax2.set_ylabel('Monthly Maintenance Cost')
+
+	plt.title('Fail Percentage of Manufacturers')
+	plt.tight_layout()
+	# plt.legend(p1[0], 'Percent Failure', loc=2)
+
+	plt.savefig('images/comp_manufacturer.png')
 
 
 if __name__ == '__main__':
 	df = failures_fetch()
 	# compressor_plot(df)
 	# month_plot(df)
-	price_plot(df)
+	# price_plot(df, 'cost')
+	manufacturer_plot(df)
