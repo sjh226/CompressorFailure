@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import sys
 import pyodbc
+import matplotlib
 import matplotlib.pyplot as plt
 
 def failures_fetch():
@@ -76,7 +77,7 @@ def failures_fetch():
 		df.columns = pd.DataFrame(np.matrix(cursor.description))[0]
 
 		# Ensure dates are in the correct format
-		df['fail_date'] = pd.to_datetime(df['fail_date'])
+		# df['fail_date'] = pd.to_datetime(df['fail_date'])
 	except:
 		pass
 
@@ -90,7 +91,12 @@ def comp_link(df):
 	# Data on all compressors
 	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
 	comps.columns = [col.lower().replace(' ', '_') for col in comps.columns]
-	comps['make_model'] = comps['compressor_manufacturer'].str.lower() + ' ' + comps['compressor_model'].str.lower()
+	comps['make_model'] = comps['compressor_manufacturer'].str.lower() + ' ' + \
+						  comps['compressor_model'].str.lower()
+						  # comps['status'].str.lower() + ' ' + \
+						  # comps['compressor_packager'].str.lower() + ' ' + \
+						  # comps['maintenance_owner'].str.lower() + ' ' + \
+						  # comps['package_owner'].str.lower() + ' '
 	comps['well_name'] = comps['well_name'].str.replace('/', '_')
 	comps['rate'].replace('WELL OWNED', '0', inplace=True)
 	comps['rate'].replace('3,750', '3750', inplace=True)
@@ -160,36 +166,40 @@ def compressor_plot(df):
 def price_plot(df):
 	plt.close()
 
-	fig, ax1 = plt.subplots(1, 1, figsize=(20, 15))
-
-	comp_list = []
-	for compressor in df['make_model'].unique():
-		if df[df['make_model'] == compressor].shape[0] > 10:
-			comp_list.append(compressor)
+	fig, ax1 = plt.subplots(1, 1, figsize=(17, 15))
+	matplotlib.rcParams.update({'font.size': 18})
 
 	percent_dic = {}
-	for compressor in comp_list:
-		percent_dic[compressor] = df[(df['make_model'] == compressor) & (df['fail_count'] > 0)].shape[0] \
-								  / df[df['make_model'] == compressor].shape[0]
+	for compressor in df['make_model'].unique():
+		if len(df[(df['make_model'] == compressor) & (df['cost'].notnull()) & (df['cost'] > 0)]['well_flac'].unique()) > 10:
+			percent_dic[compressor] = len(df[(df['make_model'] == compressor) & (df['fail_count'] > 0)]['well_flac'].unique()) \
+									  / len(df[df['make_model'] == compressor]['well_flac'].unique())
 
+	perc = {}
 	cost_dic = {}
-	for compressor in comp_list:
-		cost_dic[compressor] = df[df['make_model'] == compressor]['cost'].unique()[0]
+	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
+		perc[compressor] = percent_dic[compressor]
+		cost_dic[compressor] = df[df['make_model'] == compressor]['cost'].mode()[0]
+		# print(compressor, '\n', len(df[df['make_model'] == compressor]['well_flac'].unique()), \
+		# 	  '\n', len(df[(df['make_model'] == compressor) & (df['last_fail'].notnull())]['well_flac'].unique()), '\n-------------------------')
 
-	ind = np.arange(len(comp_list))
+	ind = np.arange(len(perc))
 	width = 0.35
 
-	p1 = ax1.bar(ind, percent_dic.values(), width, color='#58b5ef')
+	p1 = ax1.bar(ind, perc.values(), width, color='#58b5ef')
 	ax1.set_ylabel('Percent Failure')
 	ax1.set_xlabel('Compressor Type')
-	plt.xticks(ind, comp_list, rotation='vertical')
+	matplotlib.rcParams.update({'font.size': 18})
+	plt.xticks(ind, perc.keys(), rotation='vertical')
 
 	ax2 = ax1.twinx()
+	matplotlib.rcParams.update({'font.size': 18})
 	p2 = ax2.bar(ind + width, cost_dic.values(), width, color='#39702b')
-	ax2.set_ylabel('Compressor Cost')
+	ax2.set_ylabel('Monthly Maintenance Cost')
 
-	plt.title('Compressor Failures')
-	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Maintenance Cost'))
+	plt.title('Cost of Compressors by Fail Percentage')
+	plt.tight_layout()
+	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Maintenance Cost'), loc=2)
 
 	plt.savefig('images/comp_cost.png')
 
