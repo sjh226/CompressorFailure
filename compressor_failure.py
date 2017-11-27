@@ -24,15 +24,24 @@ def rtr_fetch(well_flac):
 			  ,DDH.Well1_Asset AS Asset
 			  ,DDH.Well1_WellFlac AS WellFlac
 			  ,DDH.Well1_WellName AS WellName
+			  ,DDH.Well1_ConditionCode
 			  ,DDH.Well1_CasingPress
+			  ,DDH.Well1_CasingPressPDayAvg
 			  ,DDH.Well1_TubingPress
+			  ,DDH.Well1_TubingPressPDayAvg
 			  ,DDH.Meter1_OffGasTarget
 			  ,DDH.RTU1_Barometer
 			  ,DDH.RTU1_BatteryVoltage
 			  ,DDH.Meter1_DiffPress
+			  ,DDH.Meter1_DiffPressPDayAvg
+			  ,DDH.Meter1_VolumeCDay
+			  ,DDH.Meter1_VolumePDay
 			  ,DDH.Meter1_StaticPress
+			  ,DDH.Meter1_StaticPressPDayAvg
 			  ,DDH.Meter1_FlowRate
 			  ,DDH.Meter1_Temperature
+			  ,DDH.Meter1_FlowTimeCDay
+			  ,DDH.Meter1_FlowTimePDay
 		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
 		WHERE DDH.Well1_Asset IN ('SJS')
 			--AND DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
@@ -332,8 +341,8 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/rtr_data.csv')
-	df = pd.read_csv('data/comp_feat.csv')
-	rf = joblib.load('random_forest_model.pkl')
-	df, acc = time_series_model(df, rf)
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_data.csv')
+	# df = pd.read_csv('data/comp_feat.csv')
+	# rf = joblib.load('random_forest_model.pkl')
+	# df, acc = time_series_model(df, rf)
