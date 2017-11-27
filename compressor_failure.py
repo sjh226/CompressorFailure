@@ -315,7 +315,7 @@ def time_series_model(df, rf_model):
 
 	# print(train.columns)
 	# Are there other classification models to try here?
-	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:100}, random_state=213)
+	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:1.4}, random_state=213)
 	rf.fit(train, y_train)
 	# print('Importances')
 	# print(rf.feature_importances_)
@@ -341,8 +341,8 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	df = rtr_fetch(70317101)
-	df.to_csv('data/rtr_data.csv')
-	# df = pd.read_csv('data/comp_feat.csv')
-	# rf = joblib.load('random_forest_model.pkl')
-	# df, acc = time_series_model(df, rf)
+	# df = rtr_fetch(70317101)
+	# df.to_csv('data/rtr_data.csv')
+	df = pd.read_csv('data/comp_feat.csv')
+	rf = joblib.load('random_forest_model.pkl')
+	df, acc = time_series_model(df, rf)
