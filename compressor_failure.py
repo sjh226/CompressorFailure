@@ -6,6 +6,8 @@ import datetime
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
+from sklearn.metrics import f1_score, precision_score, recall_score
+from imblearn.over_sampling import SMOTE
 
 
 def rtr_fetch(well_flac):
@@ -289,19 +291,30 @@ def time_series_model(df, rf_model):
 	test = df[df['DateTime'] >= test_date]
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', 'comp_model', 'last_failure', 'Meter'], axis=1)
+	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', \
+						'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', \
+					  'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
 	# train = train[['days_since_fail', 'fail_in_week']]
 	# test = test[['days_since_fail', 'fail_in_week']]
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
 
+	sm = SMOTE(random_state=11, ratio=1.0)
+	train, y_train = sm.fit_sample(train, y_train)
+
+	# print(train.columns)
 	# Are there other classification models to try here?
-	rf = RandomForestClassifier()
+	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:100}, random_state=213)
 	rf.fit(train, y_train)
+	# print('Importances')
+	# print(rf.feature_importances_)
 	accuracy = rf.score(test, y_test)
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
+	print('F1 Score:\n{}'.format(f1_score(y_test, rf.predict(test))))
+	print('Precision Score:\n{}'.format(precision_score(y_test, rf.predict(test))))
+	print('Recall Score:\n{}'.format(recall_score(y_test, rf.predict(test))))
 	return df, accuracy
 
 
@@ -321,6 +334,6 @@ if __name__ == '__main__':
 
 	# df = rtr_fetch(70317101)
 	# df.to_csv('data/rtr_data.csv')
-	df = pd.read_csv('data/rtr_data.csv')
+	df = pd.read_csv('data/comp_feat.csv')
 	rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)

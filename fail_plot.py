@@ -32,9 +32,9 @@ def failures_fetch():
 
 	# Retrieve RTR data for a specific well and join surface failure information
 	SQLCommand = ("""
-		SELECT WW.WellFlac
-			  ,WW.Asset
-			  ,WW.WellName
+		SELECT WW.WellFlac AS well_flac
+			  ,WW.Asset AS asset
+			  ,WW.WellName AS well_name
 			  ,MAX(SFW.fail_date) AS last_fail
 			  ,ISNULL(SUM(SFW.fail_count), 0) AS fail_count
 		FROM [OperationsDataMart].[Dimensions].[Wells] AS WW
@@ -82,21 +82,23 @@ def failures_fetch():
 
 	df = comp_link(df)
 
-	df = df.dropna(axis=0, how='any', subset=['WellFlac', 'make_model'])
+	df = df.dropna(axis=0, how='any', subset=['well_flac', 'make_model'])
 
 	return df
 
 def comp_link(df):
 	# Data on all compressors
 	comps = pd.read_csv('data/compressors.csv', encoding = 'ISO-8859-1')
-	comps['make_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
-	comps['WellName'] = comps['Well Name'].str.upper()
-	comps['WellName'] = comps['WellName'].str.replace('/', '_')
-	comps['cost'] = comps['Rate'].astype(float) + comps['Maintenance Including Fluids'].astype(float)
-	comps_lim = comps[['WellName', 'Meter', 'make_model', 'cost']].dropna(how='all')
+	comps.columns = [col.lower().replace(' ', '_') for col in comps.columns]
+	comps['make_model'] = comps['compressor_manufacturer'].str.lower() + ' ' + comps['compressor_model'].str.lower()
+	comps['well_name'] = comps['well_name'].str.replace('/', '_')
+	comps['rate'].replace('WELL OWNED', '0', inplace=True)
+	comps['rate'].replace('3,750', '3750', inplace=True)
+	comps['cost'] = comps['rate'].astype(float) + comps['maintenance_including_fluids'].astype(float)
+	comps_lim = comps.dropna(how='all')
 
 	# Merge surface failures with detailed compressor data
-	joined = pd.merge(df, comps_lim, on='WellName', how='outer')
+	joined = pd.merge(df, comps_lim, on='well_name', how='outer')
 
 	return joined
 
@@ -120,7 +122,7 @@ def month_plot(df):
 					 'July', 'August', 'September', 'October', 'November', 'December'), \
 					 rotation='vertical')
 
-	plt.savefig('monthly_fails.png')
+	plt.savefig('images/monthly_fails.png')
 
 def compressor_plot(df):
 	plt.close()
@@ -153,10 +155,47 @@ def compressor_plot(df):
 	plt.xticks(ind, comp_tot_dic.keys(), rotation='vertical')
 	plt.legend((p1[0], p2[0], p3[0]), ('Total Installs', 'Compressors which Failed in 2017', 'Monthly Maintenance Cost'))
 
-	plt.savefig('comp_fails.png')
+	plt.savefig('images/comp_fails.png')
+
+def price_plot(df):
+	plt.close()
+
+	fig, ax1 = plt.subplots(1, 1, figsize=(20, 15))
+
+	comp_list = []
+	for compressor in df['make_model'].unique():
+		if df[df['make_model'] == compressor].shape[0] > 10:
+			comp_list.append(compressor)
+
+	percent_dic = {}
+	for compressor in comp_list:
+		percent_dic[compressor] = df[(df['make_model'] == compressor) & (df['fail_count'] > 0)].shape[0] \
+								  / df[df['make_model'] == compressor].shape[0]
+
+	cost_dic = {}
+	for compressor in comp_list:
+		cost_dic[compressor] = df[df['make_model'] == compressor]['cost'].unique()[0]
+
+	ind = np.arange(len(comp_list))
+	width = 0.35
+
+	p1 = ax1.bar(ind, percent_dic.values(), width, color='#58b5ef')
+	ax1.set_ylabel('Percent Failure')
+	ax1.set_xlabel('Compressor Type')
+	plt.xticks(ind, comp_list, rotation='vertical')
+
+	ax2 = ax1.twinx()
+	p2 = ax2.bar(ind + width, cost_dic.values(), width, color='#39702b')
+	ax2.set_ylabel('Compressor Cost')
+
+	plt.title('Compressor Failures')
+	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Maintenance Cost'))
+
+	plt.savefig('images/comp_cost.png')
 
 
 if __name__ == '__main__':
 	df = failures_fetch()
-	compressor_plot(df)
+	# compressor_plot(df)
 	# month_plot(df)
+	price_plot(df)
