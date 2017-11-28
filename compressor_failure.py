@@ -7,6 +7,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.externals import joblib
 from sklearn.metrics import f1_score, precision_score, recall_score
+from sklearn.linear_model import LogisticRegression
 from imblearn.over_sampling import SMOTE
 
 
@@ -326,6 +327,55 @@ def time_series_model(df, rf_model):
 	print('Recall Score:\n{}'.format(recall_score(y_test, rf.predict(test))))
 	return df, accuracy
 
+def logistic(df):
+	# Function used to determine dependent variable based on whether or not the
+	# compressor will fail within a week of the current date
+	df['DateTime'] = pd.to_datetime(df['DateTime'])
+
+	def fail_in(row):
+		days = 7
+		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
+					  (df['DateTime'] <= (row['DateTime'] + \
+					  datetime.timedelta(days=days))) & \
+					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
+			return 1
+		else:
+			return 0
+
+	df['fail_in_week'] = df.apply(fail_in, axis=1)
+	df.to_csv('data/rtr_data.csv')
+
+	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
+
+	# Train/test split based on a 70/30 split
+	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
+
+	train = df[df['DateTime'] < test_date]
+	test = df[df['DateTime'] >= test_date]
+
+	# Remove codependent/non-numeric variables
+	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', \
+						'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
+	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', \
+					  'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
+
+	y_train = train.pop('fail_in_week')
+	y_test = test.pop('fail_in_week')
+
+	sm = SMOTE(random_state=11, ratio=1.0)
+	train, y_train = sm.fit_sample(train, y_train)
+
+	lr = LogisticRegression()
+	lr.fit(train, y_train)
+
+	accuracy = lr.score(test, y_test)
+	print('Accuracy of last RF model:\n{}'.format(accuracy))
+	print('F1 Score:\n{}'.format(f1_score(y_test, lr.predict(test))))
+	print('Precision Score:\n{}'.format(precision_score(y_test, lr.predict(test))))
+	print('Recall Score:\n{}'.format(recall_score(y_test, lr.predict(test))))
+
+	return lr
+
 
 if __name__ == '__main__':
 	# data = pd.read_csv('data/failures_2017.csv')
@@ -345,4 +395,5 @@ if __name__ == '__main__':
 	# df.to_csv('data/rtr_data.csv')
 	df = pd.read_csv('data/comp_feat.csv')
 	rf = joblib.load('random_forest_model.pkl')
-	df, acc = time_series_model(df, rf)
+	# df, acc = time_series_model(df, rf)
+	lr_model = logistic(df)
