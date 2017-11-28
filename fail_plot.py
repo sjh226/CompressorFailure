@@ -245,10 +245,48 @@ def manufacturer_plot(df):
 
 	plt.savefig('images/comp_manufacturer.png')
 
+def maint_plot(df):
+	plt.close()
+
+	fig, ax1 = plt.subplots(1, 1, figsize=(17, 15))
+	matplotlib.rcParams.update({'font.size': 18})
+
+	percent_dic = {}
+	for company in df['maintenance_owner'].unique():
+		if len(df[(df['maintenance_owner'] == company) & (df['maintenance_including_fluids'].notnull())]['well_flac'].unique()) > 10:
+			percent_dic[company] = len(df[(df['maintenance_owner'] == company) & (df['fail_count'] > 0)]['well_flac'].unique()) \
+									  / len(df[df['maintenance_owner'] == company]['well_flac'].unique())
+
+	perc = {}
+	y_dic = {}
+	for company in sorted(percent_dic, key=percent_dic.__getitem__):
+		perc[company] = percent_dic[company]
+		y_dic[company] = df[df['maintenance_owner'] == company]['maintenance_including_fluids'].mode()[0]
+
+	ind = np.arange(len(perc))
+	width = 0.35
+
+	p1 = ax1.bar(ind, perc.values(), width, color='#2c069e')
+	ax1.set_ylabel('Percent Failure in 2017')
+	ax1.set_xlabel('Maintenance Owner')
+	matplotlib.rcParams.update({'font.size': 18})
+	plt.xticks(ind, perc.keys(), rotation='vertical')
+
+	ax2 = ax1.twinx()
+	matplotlib.rcParams.update({'font.size': 18})
+	p2 = ax2.bar(ind + width, y_dic.values(), width, color='#39702b')
+	ax2.set_ylabel('Monthly Maintenance Cost')
+
+	plt.title('Fail Percentage of Maintenance Owners')
+	plt.tight_layout()
+	plt.legend((p1[0], p2[1]), ('Percent Failure', 'Maintenance Cost'), loc=2)
+
+	plt.savefig('images/maint_owner.png')
 
 if __name__ == '__main__':
 	df = failures_fetch()
 	# compressor_plot(df)
 	# month_plot(df)
 	# price_plot(df, 'cost')
-	manufacturer_plot(df)
+	# manufacturer_plot(df)
+	maint_plot(df)
