@@ -9,6 +9,7 @@ from sklearn.externals import joblib
 from sklearn.metrics import f1_score, precision_score, recall_score
 from sklearn.linear_model import LogisticRegression
 from imblearn.over_sampling import SMOTE
+import matplotlib.pyplot as plt
 
 
 def rtr_fetch(well_flac):
@@ -116,6 +117,21 @@ def rtr_fetch(well_flac):
 
 	df['days_since_fail'].fillna(-999, inplace=True)
 	df.dropna(axis=0, subset=['comp_model'], inplace=True)
+
+	df['DateTime'] = pd.to_datetime(df['DateTime'])
+
+	def fail_in(row):
+		days = 7
+		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
+					  (df['DateTime'] <= (row['DateTime'] + \
+					  datetime.timedelta(days=days))) & \
+					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
+			return 1
+		else:
+			return 0
+
+	df['fail_in_week'] = df.apply(fail_in, axis=1)
+	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
 
 	return df
 
@@ -330,22 +346,6 @@ def time_series_model(df, rf_model):
 def logistic(df):
 	# Function used to determine dependent variable based on whether or not the
 	# compressor will fail within a week of the current date
-	df['DateTime'] = pd.to_datetime(df['DateTime'])
-
-	def fail_in(row):
-		days = 7
-		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
-					  (df['DateTime'] <= (row['DateTime'] + \
-					  datetime.timedelta(days=days))) & \
-					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
-			return 1
-		else:
-			return 0
-
-	df['fail_in_week'] = df.apply(fail_in, axis=1)
-	df.to_csv('data/rtr_data.csv')
-
-	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
 
 	# Train/test split based on a 70/30 split
 	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
@@ -362,11 +362,11 @@ def logistic(df):
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
 
-	sm = SMOTE(random_state=11, ratio=1.0)
-	train, y_train = sm.fit_sample(train, y_train)
+	sm = SMOTE(random_state=11)
+	x_train, y_train = sm.fit_sample(train, y_train)
 
-	lr = LogisticRegression()
-	lr.fit(train, y_train)
+	lr = LogisticRegression(class_weight={0:1, 1:2}, random_state=45)
+	lr.fit(x_train, y_train)
 
 	accuracy = lr.score(test, y_test)
 	print('Accuracy of last RF model:\n{}'.format(accuracy))
@@ -374,8 +374,31 @@ def logistic(df):
 	print('Precision Score:\n{}'.format(precision_score(y_test, lr.predict(test))))
 	print('Recall Score:\n{}'.format(recall_score(y_test, lr.predict(test))))
 
+	coeff_plot(train.columns, lr)
+
 	return lr
 
+def coeff_plot(feat, log_model):
+	plt.close()
+
+	fig, ax = plt.subplots(1, 1, figsize=(17, 15))
+	# matplotlib.rcParams.update({'font.size': 18})
+
+	ind = np.arange(len(feat) - 1)
+	width = 0.35
+
+	p1 = ax.bar(ind, log_model.coef_[0][:-1], width, color='#ba0025')
+	ax.axhline()
+	ax.set_ylabel('Coefficient Value')
+	ax.set_xlabel('Feature')
+	# matplotlib.rcParams.update({'font.size': 18})
+	plt.xticks(ind, feat[:-1], rotation='vertical')
+
+	plt.title('Feature Correlation Strength and Direction')
+	plt.tight_layout()
+	# plt.legend(p1[0], 'Percent Failure', loc=2)
+
+	plt.savefig('images/lr_coef.png')
 
 if __name__ == '__main__':
 	# data = pd.read_csv('data/failures_2017.csv')
@@ -393,7 +416,7 @@ if __name__ == '__main__':
 
 	# df = rtr_fetch(70317101)
 	# df.to_csv('data/rtr_data.csv')
-	df = pd.read_csv('data/comp_feat.csv')
-	rf = joblib.load('random_forest_model.pkl')
+	df = pd.read_csv('data/rtr_data.csv')
+	# rf = joblib.load('random_forest_model.pkl')
 	# df, acc = time_series_model(df, rf)
 	lr_model = logistic(df)
