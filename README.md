@@ -27,4 +27,4 @@ The top feature (days since last failure) has been engineered from the data
 acquired but is left out of the graph below due to it's dramatically higher
 coefficient value.
 
-![feat coefficients](images/lr_coeff.png)
+![feat coefficients](images/lr_coef.png)
