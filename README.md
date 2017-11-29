@@ -28,3 +28,8 @@ acquired but is left out of the graph below due to it's dramatically higher
 coefficient value.
 
 ![feat coefficients](images/lr_coef.png)
+
+We would like to bring in daily values for suction and discharge temperature. From
+this we can create variables based on how far outside the proper range these
+values are. We could also look at how far the actual value is from the "kill"
+value.
