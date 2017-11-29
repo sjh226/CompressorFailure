@@ -44,6 +44,17 @@ def rtr_fetch(well_flac):
 			  ,DDH.Meter1_Temperature
 			  ,DDH.Meter1_FlowTimeCDay
 			  ,DDH.Meter1_FlowTimePDay
+		      ,DDH.Comp1_RunTimeCDay
+		      ,DDH.Comp1_RunTimePDay
+		      ,DDH.Comp1_Discharge
+			  ,DDH.Comp1_RPM
+		      ,DDH.Comp1_RecycleOutput
+		      ,DDH.Comp1_Suction
+			  ,DDH.Comp1_Status
+		      ,DDH.Comp1_PanelCode
+		      ,DDH.Comp1_PanelCodeText
+		      ,DDH.Comp1_PanelStatusCode
+		      ,DDH.Comp1_PanelStatusText
 		FROM [EDW].[RTR].[DataDailyHistory] AS DDH
 		WHERE DDH.Well1_Asset IN ('SJS')
 			--AND DDH.Well1_WellFlac = '""" + str(well_flac) +"""'
@@ -121,7 +132,7 @@ def rtr_fetch(well_flac):
 	df['DateTime'] = pd.to_datetime(df['DateTime'])
 
 	def fail_in(row):
-		days = 7
+		days = 3
 		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
 					  (df['DateTime'] <= (row['DateTime'] + \
 					  datetime.timedelta(days=days))) & \
@@ -132,6 +143,8 @@ def rtr_fetch(well_flac):
 
 	df['fail_in_week'] = df.apply(fail_in, axis=1)
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
+
+	df.columns = [col.lower().replace(' ', '_') for col in df.columns]
 
 	return df
 
@@ -226,7 +239,9 @@ def compressor_link(df):
 	comps['comp_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['WellName'] = comps['Well Name'].str.lower()
 	comps['WellName'] = comps['WellName'].str.replace('/', '_')
-	comps_lim = comps[['WellName', 'Meter', 'comp_model']].dropna(how='all')
+	comps_lim = comps[['WellName', 'Lwo Suction Kill', 'High Suction kill', \
+					   'Low Discharge Kill', 'High Discharge Kill', \
+					   'Discharge temp kill', 'comp_model']].dropna(how='all')
 
 	# Merge surface failures with detailed compressor data
 	joined = pd.merge(df, comps_lim, on='WellName', how='outer')
@@ -414,9 +429,9 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/rtr_data.csv')
-	df = pd.read_csv('data/rtr_data.csv')
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_data_3.csv')
+	# df = pd.read_csv('data/rtr_data.csv')
 	# rf = joblib.load('random_forest_model.pkl')
 	# df, acc = time_series_model(df, rf)
 	lr_model = logistic(df)
