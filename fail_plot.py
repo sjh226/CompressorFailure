@@ -100,6 +100,7 @@ def comp_link(df):
 	comps['well_name'] = comps['well_name'].str.replace('/', '_')
 	comps['rate'].replace('WELL OWNED', '0', inplace=True)
 	comps['rate'].replace('3,750', '3750', inplace=True)
+	comps['maintenance_including_fluids'].fillna(0, inplace=True)
 	comps['cost'] = comps['rate'].astype(float) + comps['maintenance_including_fluids'].astype(float)
 	comps_lim = comps.dropna(how='all')
 
@@ -170,22 +171,34 @@ def price_plot(df, plot):
 	matplotlib.rcParams.update({'font.size': 18})
 
 	percent_dic = {}
+	rental_dic = {}
 	for compressor in df['make_model'].unique():
 		if len(df[(df['make_model'] == compressor) & (df['cost'].notnull()) & (df['cost'] > 0)]['well_flac'].unique()) > 10:
 			percent_dic[compressor] = len(df[(df['make_model'] == compressor) & (df['fail_count'] > 0)]['well_flac'].unique()) \
 									  / len(df[df['make_model'] == compressor]['well_flac'].unique())
+		else:
+			rental_dic[compressor] = len(df[(df['make_model'] == compressor) & (df['fail_count'] > 0)]['well_flac'].unique()) \
+									 / len(df[df['make_model'] == compressor]['well_flac'].unique())
 
 	perc = {}
 	y_dic = {}
-	for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
-		perc[compressor] = percent_dic[compressor]
-		if plot == 'cost':
-			y_dic[compressor] = df[df['make_model'] == compressor]['cost'].mode()[0]
-			# print(compressor, '\n', len(df[df['make_model'] == compressor]['well_flac'].unique()), \
-			# 	  '\n', len(df[(df['make_model'] == compressor) & (df['last_fail'].notnull())]['well_flac'].unique()), '\n-------------------------')
-		elif plot == 'temp_kill':
-			y_dic[compressor] = df[df['make_model'] == compressor]['discharge_temp_kill'].mode()[0]
-			# print(compressor, '\n', df[df['make_model'] == compressor]['discharge_temp_kill'].unique())
+	if plot == 'rent':
+		for compressor in sorted(rental_dic, key=rental_dic.__getitem__):
+			rental = np.mean(df[(df['make_model'] == compressor) & \
+							(df['status'].str.lower() == 'rental')]['cost'].unique())
+			if rental > 0:
+				perc[compressor] = rental_dic[compressor]
+				y_dic[compressor] = rental
+	else:
+		for compressor in sorted(percent_dic, key=percent_dic.__getitem__):
+			perc[compressor] = percent_dic[compressor]
+			if plot == 'cost':
+				y_dic[compressor] = df[df['make_model'] == compressor]['cost'].mode()[0]
+				# print(compressor, '\n', len(df[df['make_model'] == compressor]['well_flac'].unique()), \
+				# 	  '\n', len(df[(df['make_model'] == compressor) & (df['last_fail'].notnull())]['well_flac'].unique()), '\n-------------------------')
+			elif plot == 'temp_kill':
+				y_dic[compressor] = df[df['make_model'] == compressor]['discharge_temp_kill'].mode()[0]
+				# print(compressor, '\n', df[df['make_model'] == compressor]['discharge_temp_kill'].unique())
 
 	ind = np.arange(len(perc))
 	width = 0.35
@@ -199,11 +212,11 @@ def price_plot(df, plot):
 	ax2 = ax1.twinx()
 	matplotlib.rcParams.update({'font.size': 18})
 	p2 = ax2.bar(ind + width, y_dic.values(), width, color='#39702b')
-	ax2.set_ylabel('Monthly Cost')
+	ax2.set_ylabel('Monthly Maintenance Cost')
 
-	plt.title('Cost of Compressors by Fail Percentage')
+	plt.title('Cost of Rental Compressors by Fail Percentage')
 	plt.tight_layout()
-	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Cost'), loc=2)
+	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Monthly Maintenance Cost'), loc=2)
 
 	plt.savefig('images/comp_{}.png'.format(plot))
 
@@ -287,6 +300,6 @@ if __name__ == '__main__':
 	df = failures_fetch()
 	# compressor_plot(df)
 	# month_plot(df)
-	price_plot(df, 'cost')
+	price_plot(df, 'rent')
 	# manufacturer_plot(df)
 	# maint_plot(df)
