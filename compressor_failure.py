@@ -239,7 +239,7 @@ def compressor_link(df):
 	comps['comp_model'] = comps['Compressor Manufacturer'].str.lower() + ' ' + comps['Compressor Model'].str.lower()
 	comps['WellName'] = comps['Well Name'].str.lower()
 	comps['WellName'] = comps['WellName'].str.replace('/', '_')
-	comps_lim = comps[['WellName', 'Lwo Suction Kill', 'High Suction kill', \
+	comps_lim = comps[['WellName', 'Lwo Suction Kill', 'High suction kill', \
 					   'Low Discharge Kill', 'High Discharge Kill', \
 					   'Discharge temp kill', 'comp_model']].dropna(how='all')
 
@@ -363,16 +363,16 @@ def logistic(df):
 	# compressor will fail within a week of the current date
 
 	# Train/test split based on a 70/30 split
-	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
+	test_date = df.iloc[int(df.shape[0] * .7),:]['datetime']
 
-	train = df[df['DateTime'] < test_date]
-	test = df[df['DateTime'] >= test_date]
+	train = df[df['datetime'] < test_date].dropna(how='any', axis=1)
+	test = df[df['datetime'] >= test_date].dropna(how='any', axis=1)
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', \
-						'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', \
-					  'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
+	train = train.drop(['datetime', 'asset', 'failure', 'wellflac', 'wellname', \
+						'comp_model', 'Unnamed: 0'], axis=1)
+	test = test.drop(['datetime', 'asset', 'failure', 'wellflac', 'wellname', \
+					  'comp_model', 'Unnamed: 0'], axis=1)
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
@@ -380,7 +380,7 @@ def logistic(df):
 	sm = SMOTE(random_state=11)
 	x_train, y_train = sm.fit_sample(train, y_train)
 
-	lr = LogisticRegression(class_weight={0:1, 1:2}, random_state=45)
+	lr = LogisticRegression(class_weight={0:1, 1:1.333}, random_state=45)
 	lr.fit(x_train, y_train)
 
 	accuracy = lr.score(test, y_test)
@@ -389,7 +389,7 @@ def logistic(df):
 	print('Precision Score:\n{}'.format(precision_score(y_test, lr.predict(test))))
 	print('Recall Score:\n{}'.format(recall_score(y_test, lr.predict(test))))
 
-	coeff_plot(train.columns, lr)
+	coeff_plot(list(train.columns), lr)
 
 	return lr
 
@@ -402,16 +402,18 @@ def coeff_plot(feat, log_model):
 	ind = np.arange(len(feat) - 1)
 	width = 0.35
 
-	p1 = ax.bar(ind, log_model.coef_[0][:-1], width, color='#ba0025')
+	coeffs = list(log_model.coef_[0])
+	del coeffs[feat.index('days_since_fail')]
+	del feat[feat.index('days_since_fail')]
+
+	p1 = ax.bar(ind, coeffs, width, color='#ba0025')
 	ax.axhline()
 	ax.set_ylabel('Coefficient Value')
 	ax.set_xlabel('Feature')
-	# matplotlib.rcParams.update({'font.size': 18})
-	plt.xticks(ind, feat[:-1], rotation='vertical')
+	plt.xticks(ind, feat, rotation='vertical')
 
 	plt.title('Feature Correlation Strength and Direction')
 	plt.tight_layout()
-	# plt.legend(p1[0], 'Percent Failure', loc=2)
 
 	plt.savefig('images/lr_coef.png')
 
@@ -429,9 +431,9 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	df = rtr_fetch(70317101)
-	df.to_csv('data/rtr_data_3.csv')
-	# df = pd.read_csv('data/rtr_data.csv')
+	# df = rtr_fetch(70317101)
+	# df.to_csv('data/rtr_data_3.csv')
+	df = pd.read_csv('data/rtr_data_3.csv')
 	# rf = joblib.load('random_forest_model.pkl')
 	# df, acc = time_series_model(df, rf)
 	lr_model = logistic(df)
