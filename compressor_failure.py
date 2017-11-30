@@ -76,6 +76,45 @@ def rtr_fetch(well_flac):
 	# 		AND W.Asset = 'Farmington';
 	# """)
 
+	# Using hourly RTR data
+	SQLCommand = ("""
+		SELECT DHH.DateTime
+		      ,DHH.Well1_Asset
+		      ,DHH.Well1_WellName
+		      ,DHH.Well1_WellFlac
+		      ,DHH.RTU1_BatteryVoltage
+		      ,DHH.RTU1_BatteryVoltagePDayAvg
+		      ,DHH.RTU1_ProgramRevision
+		      ,DHH.Well1_AmbientTemp
+		      ,DHH.Well1_CasingPress
+		      ,DHH.Well1_CasingPressPDayAvg
+		      ,DHH.Well1_TubingPress
+		      ,DHH.Well1_TubingPressPDayAvg
+		      ,DHH.Well1_PowerStatus
+		      ,DHH.Meter1_OffGasTarget
+		      ,DHH.Meter1_ProjectedOffTarget
+		      ,DHH.Meter1_VolumeCDay
+		      ,DHH.Meter1_VolumePDay
+		      ,DHH.Meter1_StaticPress
+		      ,DHH.Meter1_StaticPressPDayAvg
+		      ,DHH.Meter1_FlowRate
+		      ,DHH.Meter1_Temperature
+		      ,DHH.Meter1_TemperaturePDayAvg
+		      ,DHH.Meter1_OffEngForecast
+		      ,DHH.Meter1_Volume7DayAvg
+		      ,DHH.Meter1_FlowTimeCDay
+		      ,DHH.Meter1_FlowTimePDay
+		      ,DHH.Comp1_RunTimeCDay
+		      ,DHH.Comp1_RunTimePDay
+		      ,DHH.Comp1_Discharge
+		      ,DHH.Comp1_RPM
+		      ,DHH.Comp1_Suction
+		      ,DHH.Comp1_Status
+	  FROM [EDW].[RTR].[DataHourlyHistory] AS DHH
+	  WHERE Well1_Asset IN ('SJS')
+	  	AND DHH.Well1_WellFlac IS NOT NULL;
+	""")
+
 	cursor.execute(SQLCommand)
 	results = cursor.fetchall()
 
@@ -431,9 +470,9 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/rtr_data_3.csv')
-	df = pd.read_csv('data/rtr_data_3.csv')
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_hourly_data_3.csv')
+	df = pd.read_csv('data/rtr_hourly_data_3.csv')
 	rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)
 	# lr_model = logistic(df)
