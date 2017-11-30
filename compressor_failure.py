@@ -76,6 +76,45 @@ def rtr_fetch(well_flac):
 	# 		AND W.Asset = 'Farmington';
 	# """)
 
+	# Using hourly RTR data
+	SQLCommand = ("""
+		SELECT DHH.DateTime
+		      ,DHH.Well1_Asset
+		      ,DHH.Well1_WellName
+		      ,DHH.Well1_WellFlac
+		      ,DHH.RTU1_BatteryVoltage
+		      ,DHH.RTU1_BatteryVoltagePDayAvg
+		      ,DHH.RTU1_ProgramRevision
+		      ,DHH.Well1_AmbientTemp
+		      ,DHH.Well1_CasingPress
+		      ,DHH.Well1_CasingPressPDayAvg
+		      ,DHH.Well1_TubingPress
+		      ,DHH.Well1_TubingPressPDayAvg
+		      ,DHH.Well1_PowerStatus
+		      ,DHH.Meter1_OffGasTarget
+		      ,DHH.Meter1_ProjectedOffTarget
+		      ,DHH.Meter1_VolumeCDay
+		      ,DHH.Meter1_VolumePDay
+		      ,DHH.Meter1_StaticPress
+		      ,DHH.Meter1_StaticPressPDayAvg
+		      ,DHH.Meter1_FlowRate
+		      ,DHH.Meter1_Temperature
+		      ,DHH.Meter1_TemperaturePDayAvg
+		      ,DHH.Meter1_OffEngForecast
+		      ,DHH.Meter1_Volume7DayAvg
+		      ,DHH.Meter1_FlowTimeCDay
+		      ,DHH.Meter1_FlowTimePDay
+		      ,DHH.Comp1_RunTimeCDay
+		      ,DHH.Comp1_RunTimePDay
+		      ,DHH.Comp1_Discharge
+		      ,DHH.Comp1_RPM
+		      ,DHH.Comp1_Suction
+		      ,DHH.Comp1_Status
+	  FROM [EDW].[RTR].[DataHourlyHistory] AS DHH
+	  WHERE Well1_Asset IN ('SJS')
+	  	AND DHH.Well1_WellFlac IS NOT NULL;
+	""")
+
 	cursor.execute(SQLCommand)
 	results = cursor.fetchall()
 
@@ -303,14 +342,14 @@ def time_series_model(df, rf_model):
 	'''
 	# Function used to determine dependent variable based on whether or not the
 	# compressor will fail within a week of the current date
-	df['DateTime'] = pd.to_datetime(df['DateTime'])
+	df['datetime'] = pd.to_datetime(df['datetime'])
 
 	def fail_in(row):
 		days = 7
-		if np.mean(df[(df['DateTime'] > row['DateTime']) & \
-					  (df['DateTime'] <= (row['DateTime'] + \
+		if np.mean(df[(df['datetime'] > row['datetime']) & \
+					  (df['datetime'] <= (row['datetime'] + \
 					  datetime.timedelta(days=days))) & \
-					  (df['WellFlac'] == row['WellFlac'])]['failure']) > 0:
+					  (df['wellflac'] == row['wellflac'])]['failure']) > 0:
 			return 1
 		else:
 			return 0
@@ -326,28 +365,28 @@ def time_series_model(df, rf_model):
 	df['days_since_fail'] = pd.to_numeric(df['days_since_fail'], errors='ignore')
 
 	# Train/test split based on a 70/30 split
-	test_date = df.iloc[int(df.shape[0] * .7),:]['DateTime']
+	test_date = df.iloc[int(df.shape[0] * .7),:]['datetime']
 
-	train = df[df['DateTime'] < test_date]
-	test = df[df['DateTime'] >= test_date]
+	train = df[df['datetime'] < test_date].dropna(how='any', axis=1)
+	test = df[df['datetime'] >= test_date].dropna(how='any', axis=1)
 
 	# Remove codependent/non-numeric variables
-	train = train.drop(['DateTime', 'Asset', 'failure', 'WellFlac', 'WellName', \
-						'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
-	test = test.drop(['DateTime', 'Asset', 'failure','WellFlac', 'WellName', \
-					  'comp_model', 'last_failure', 'Meter', 'Unnamed: 0'], axis=1)
+	train = train.drop(['datetime', 'asset', 'failure', 'wellflac', 'wellname', \
+						'comp_model', 'Unnamed: 0'], axis=1)
+	test = test.drop(['datetime', 'asset', 'failure', 'wellflac', 'wellname', \
+					  'comp_model', 'Unnamed: 0'], axis=1)
 	# train = train[['days_since_fail', 'fail_in_week']]
 	# test = test[['days_since_fail', 'fail_in_week']]
 
 	y_train = train.pop('fail_in_week')
 	y_test = test.pop('fail_in_week')
 
-	sm = SMOTE(random_state=11, ratio=1.0)
+	sm = SMOTE(random_state=11)
 	train, y_train = sm.fit_sample(train, y_train)
 
 	# print(train.columns)
 	# Are there other classification models to try here?
-	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:1.4}, random_state=213)
+	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:0.01}, random_state=213)
 	rf.fit(train, y_train)
 	# print('Importances')
 	# print(rf.feature_importances_)
@@ -431,9 +470,9 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/rtr_data_3.csv')
-	df = pd.read_csv('data/rtr_data_3.csv')
-	# rf = joblib.load('random_forest_model.pkl')
-	# df, acc = time_series_model(df, rf)
-	lr_model = logistic(df)
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_hourly_data_3.csv')
+	df = pd.read_csv('data/rtr_hourly_data_3.csv')
+	rf = joblib.load('random_forest_model.pkl')
+	df, acc = time_series_model(df, rf)
+	# lr_model = logistic(df)
