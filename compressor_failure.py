@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 
 def rtr_fetch(well_flac):
 	try:
-		connection = pyodbc.connect(Driver = '{SQL Server Native Client 11.0};Server=SQLDW-L48.BP.Com;Database=EDW;trusted_connection=yes')
+		connection = pyodbc.connect(Driver = '{SQL Server Native Client 11.0};Server=SQLDW-Test-L48.BP.Com;Database=EDW;trusted_connection=yes')
 	except pyodbc.Error:
 		print("Connection Error")
 		sys.exit()
@@ -386,7 +386,7 @@ def time_series_model(df, rf_model):
 
 	# print(train.columns)
 	# Are there other classification models to try here?
-	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1, 1:0.01}, random_state=213)
+	rf = RandomForestClassifier(n_estimators=8, class_weight={0:1000, 1:1}, random_state=213)
 	rf.fit(train, y_train)
 	# print('Importances')
 	# print(rf.feature_importances_)
@@ -470,9 +470,10 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	df = rtr_fetch(70317101)
-	df.to_csv('data/rtr_hourly_data_3.csv')
-	df = pd.read_csv('data/rtr_hourly_data_3.csv')
+	# df = rtr_fetch(70317101)
+	# df.to_csv('data/rtr_hourly_data_3.csv')
+	df = pd.read_csv('data/rtr_data_3.csv')
 	rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)
-	# lr_model = logistic(df)
+	print('-------------------------------------------')
+	lr_model = logistic(df)
