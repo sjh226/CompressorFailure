@@ -292,7 +292,7 @@ def maint_plot(df):
 
 	plt.title('Fail Percentage of Maintenance Owners')
 	plt.tight_layout()
-	plt.legend((p1[0], p2[1]), ('Percent Failure', 'Maintenance Cost'), loc=2)
+	plt.legend((p1[0], p2[0]), ('Percent Failure', 'Maintenance Cost'), loc=2)
 
 	plt.savefig('images/maint_owner.png')
 
