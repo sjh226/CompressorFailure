@@ -126,7 +126,7 @@ def rtr_fetch(well_flac):
 	except:
 		df = None
 
-	df['WellName'] = df['WellName'].str.lower()
+	df['WellName'] = df['Well1_WellName'].str.lower()
 	df['DateTime'] = pd.to_datetime(df['DateTime'])
 
 	# Query for the surface failures on record for a specific well
@@ -470,10 +470,10 @@ if __name__ == '__main__':
 	# 	accs.append(accuracy)
 	# print('Average Accuracy: {}'.format(np.mean(accs)))
 
-	# df = rtr_fetch(70317101)
-	# df.to_csv('data/rtr_hourly_data_3.csv')
-	df = pd.read_csv('data/rtr_data_3.csv')
-	rf = joblib.load('random_forest_model.pkl')
+	df = rtr_fetch(70317101)
+	df.to_csv('data/rtr_hourly_data_3.csv')
+	# df = pd.read_csv('data/rtr_data_3.csv')
+	# rf = joblib.load('random_forest_model.pkl')
 	df, acc = time_series_model(df, rf)
 	print('-------------------------------------------')
 	lr_model = logistic(df)
